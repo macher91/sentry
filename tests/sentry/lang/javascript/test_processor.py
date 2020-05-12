@@ -936,7 +936,7 @@ class HandlesFrameTest(TestCase):
         }
         assert processor.handles_frame(frame, {}) is True
 
-    def test_has_context_line_but_no_line_and_col(self):
+    def test_has_context_line_but_not_both_line_and_col(self):
         project = self.create_project()
         processor = JavaScriptStacktraceProcessor(data={}, stacktrace_infos=None, project=project)
 
