@@ -925,7 +925,7 @@ class CacheSourceTest(TestCase):
         assert processor.cache.get_errors(abs_path)[0] == {"url": map_url, "type": "js_no_source"}
 
 class HandlesFrameTest(TestCase):
-    def test_has_no_context_line(self):
+    def test_should_run_processor(self):
         project = self.create_project()
         processor = JavaScriptStacktraceProcessor(data={}, stacktrace_infos=None, project=project)
 
@@ -936,9 +936,33 @@ class HandlesFrameTest(TestCase):
         }
         assert processor.handles_frame(frame, {}) is True
 
-    def test_has_context_line_but_not_both_line_and_col(self):
-        project = self.create_project()
-        processor = JavaScriptStacktraceProcessor(data={}, stacktrace_infos=None, project=project)
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": None
+        }
+        assert processor.handles_frame(frame, {}) is True
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": None,
+            "lineno": None,
+            "colno": None,
+        }
+        assert processor.handles_frame(frame, {}) is True
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": "",
+            "lineno": 0,
+            "colno": 0,
+        }
+        assert processor.handles_frame(frame, {}) is True
 
         frame = {
             "abs_path": "http://example.com/foo.js",
@@ -966,7 +990,7 @@ class HandlesFrameTest(TestCase):
         }
         assert processor.handles_frame(frame, {}) is True
 
-    def test_has_context_line_and_line_and_col(self):
+    def test_should_skip_processor(self):
         project = self.create_project()
         processor = JavaScriptStacktraceProcessor(data={}, stacktrace_infos=None, project=project)
 

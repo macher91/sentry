@@ -545,7 +545,7 @@ class JavaScriptStacktraceProcessor(StacktraceProcessor):
 
     def handles_frame(self, frame, stacktrace_info):
         platform = frame.get("platform") or self.data.get("platform")
-        has_context_line = len(frame.get("context_line", "")) > 0
+        has_context_line = bool(frame.get("context_line"))
         has_lineno = frame.get("lineno", -1) >= 0
         has_colno = frame.get("colno", -1) >= 0
         is_symbolicated = has_context_line and has_lineno and has_colno
