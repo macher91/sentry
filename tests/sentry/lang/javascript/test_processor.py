@@ -923,3 +923,69 @@ class CacheSourceTest(TestCase):
         # now we have an error
         assert len(processor.cache.get_errors(abs_path)) == 1
         assert processor.cache.get_errors(abs_path)[0] == {"url": map_url, "type": "js_no_source"}
+
+class HandlesFrameTest(TestCase):
+    def test_has_no_context_line(self):
+        project = self.create_project()
+        processor = JavaScriptStacktraceProcessor(data={}, stacktrace_infos=None, project=project)
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript"
+        }
+        assert processor.handles_frame(frame, {}) is True
+
+    def test_has_context_line_but_no_line_and_col(self):
+        project = self.create_project()
+        processor = JavaScriptStacktraceProcessor(data={}, stacktrace_infos=None, project=project)
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": "abc"
+        }
+        assert processor.handles_frame(frame, {}) is True
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": "abc",
+            "colno": 1,
+        }
+        assert processor.handles_frame(frame, {}) is True
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": "abc",
+            "lineno": 1,
+        }
+        assert processor.handles_frame(frame, {}) is True
+
+    def test_has_context_line_and_line_and_col(self):
+        project = self.create_project()
+        processor = JavaScriptStacktraceProcessor(data={}, stacktrace_infos=None, project=project)
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": "abc",
+            "colno": 1,
+            "lineno": 1,
+        }
+        assert processor.handles_frame(frame, {}) is False
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": "abc",
+            "colno": 0,
+            "lineno": 0,
+        }
+        assert processor.handles_frame(frame, {}) is False
