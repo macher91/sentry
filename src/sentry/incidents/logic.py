@@ -745,7 +745,7 @@ def update_alert_rule(
             or include_all_projects is not None
             or excluded_projects is not None
         ):
-            existing_subs = alert_rule.query_subscriptions.all().select_related("project")
+            existing_subs = alert_rule.snuba_query.subscriptions.all().select_related("project")
 
         new_projects = []
         deleted_subs = []
@@ -839,7 +839,7 @@ def delete_alert_rule(alert_rule):
 
     with transaction.atomic():
         incidents = Incident.objects.filter(alert_rule=alert_rule)
-        bulk_delete_snuba_subscriptions(list(alert_rule.query_subscriptions.all()))
+        bulk_delete_snuba_subscriptions(list(alert_rule.snuba_query.subscriptions.all()))
         if incidents:
             alert_rule.update(status=AlertRuleStatus.SNAPSHOT.value)
         else:
@@ -1007,7 +1007,7 @@ def get_subscriptions_from_alert_rule(alert_rule, projects):
     :param projects: The Project we want subscriptions for
     :return: A list of QuerySubscriptions
     """
-    excluded_subscriptions = alert_rule.query_subscriptions.filter(project__in=projects)
+    excluded_subscriptions = alert_rule.snuba_query.subscriptions.filter(project__in=projects)
     if len(excluded_subscriptions) != len(projects):
         invalid_slugs = set([p.slug for p in projects]) - set(
             [s.project.slug for s in excluded_subscriptions]

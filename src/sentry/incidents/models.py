@@ -355,8 +355,8 @@ class AlertRuleManager(BaseManager):
 class AlertRuleEnvironment(Model):
     __core__ = True
 
-    environment = FlexibleForeignKey("sentry.Environment")
-    alert_rule = FlexibleForeignKey("sentry.AlertRule")
+    environment = FlexibleForeignKey("sentry.Environment", db_constraint=False)
+    alert_rule = FlexibleForeignKey("sentry.AlertRule", db_constraint=False)
 
     class Meta:
         app_label = "sentry"
@@ -367,8 +367,10 @@ class AlertRuleEnvironment(Model):
 class AlertRuleQuerySubscription(Model):
     __core__ = True
 
-    query_subscription = FlexibleForeignKey("sentry.QuerySubscription", unique=True)
-    alert_rule = FlexibleForeignKey("sentry.AlertRule")
+    query_subscription = FlexibleForeignKey(
+        "sentry.QuerySubscription", db_constraint=False, unique=True
+    )
+    alert_rule = FlexibleForeignKey("sentry.AlertRule", db_constraint=False)
 
     class Meta:
         app_label = "sentry"
