@@ -932,7 +932,10 @@ class HandlesFrameTest(TestCase):
         frame = {
             "abs_path": "http://example.com/foo.js",
             "filename": "foo.js",
-            "platform": "javascript"
+            "platform": "javascript",
+            "context_line": "",
+            "lineno": 1,
+            "colno": 0,
         }
         assert processor.handles_frame(frame, {}) is True
 
@@ -940,9 +943,38 @@ class HandlesFrameTest(TestCase):
             "abs_path": "http://example.com/foo.js",
             "filename": "foo.js",
             "platform": "javascript",
-            "context_line": None
+            "lineno": 1,
         }
         assert processor.handles_frame(frame, {}) is True
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": None,
+            "lineno": 1,
+            "colno": 0,
+        }
+        assert processor.handles_frame(frame, {}) is True
+
+    def test_should_skip_processor(self):
+        project = self.create_project()
+        processor = JavaScriptStacktraceProcessor(data={}, stacktrace_infos=None, project=project)
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript"
+        }
+        assert processor.handles_frame(frame, {}) is False
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": None
+        }
+        assert processor.handles_frame(frame, {}) is False
 
         frame = {
             "abs_path": "http://example.com/foo.js",
@@ -952,47 +984,7 @@ class HandlesFrameTest(TestCase):
             "lineno": None,
             "colno": None,
         }
-        assert processor.handles_frame(frame, {}) is True
-
-        frame = {
-            "abs_path": "http://example.com/foo.js",
-            "filename": "foo.js",
-            "platform": "javascript",
-            "context_line": "",
-            "lineno": 0,
-            "colno": 0,
-        }
-        assert processor.handles_frame(frame, {}) is True
-
-        frame = {
-            "abs_path": "http://example.com/foo.js",
-            "filename": "foo.js",
-            "platform": "javascript",
-            "context_line": "abc"
-        }
-        assert processor.handles_frame(frame, {}) is True
-
-        frame = {
-            "abs_path": "http://example.com/foo.js",
-            "filename": "foo.js",
-            "platform": "javascript",
-            "context_line": "abc",
-            "colno": 1,
-        }
-        assert processor.handles_frame(frame, {}) is True
-
-        frame = {
-            "abs_path": "http://example.com/foo.js",
-            "filename": "foo.js",
-            "platform": "javascript",
-            "context_line": "abc",
-            "lineno": 1,
-        }
-        assert processor.handles_frame(frame, {}) is True
-
-    def test_should_skip_processor(self):
-        project = self.create_project()
-        processor = JavaScriptStacktraceProcessor(data={}, stacktrace_infos=None, project=project)
+        assert processor.handles_frame(frame, {}) is False
 
         frame = {
             "abs_path": "http://example.com/foo.js",
@@ -1011,5 +1003,14 @@ class HandlesFrameTest(TestCase):
             "context_line": "abc",
             "colno": 0,
             "lineno": 0,
+        }
+        assert processor.handles_frame(frame, {}) is False
+
+        frame = {
+            "abs_path": "http://example.com/foo.js",
+            "filename": "foo.js",
+            "platform": "javascript",
+            "context_line": "abc",
+            "lineno": 1,
         }
         assert processor.handles_frame(frame, {}) is False
