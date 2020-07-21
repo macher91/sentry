@@ -10,13 +10,13 @@ import EventView from 'app/utils/discover/eventView';
 import ChartZoom from 'app/components/charts/chartZoom';
 import LineChart from 'app/components/charts/lineChart';
 import ErrorPanel from 'app/components/charts/errorPanel';
+import EventsRequest from 'app/components/charts/eventsRequest';
 import QuestionTooltip from 'app/components/questionTooltip';
 import {SectionHeading} from 'app/components/charts/styles';
 import TransparentLoadingMask from 'app/components/charts/transparentLoadingMask';
 import TransitionChart from 'app/components/charts/transitionChart';
 import {getInterval} from 'app/components/charts/utils';
 import {IconWarning} from 'app/icons';
-import EventsRequest from 'app/views/events/utils/eventsRequest';
 import {PERFORMANCE_TERMS} from 'app/views/performance/constants';
 import {getUtcToLocalDateObject} from 'app/utils/dates';
 import {
@@ -92,7 +92,7 @@ function SidebarCharts({api, eventView, organization, router}: Props) {
         gridIndex: 0,
         axisLabel: {
           formatter: (value: number) => formatFloat(value, 2),
-          color: theme.gray1,
+          color: theme.gray400,
         },
         ...axisLineConfig,
       },
@@ -101,16 +101,16 @@ function SidebarCharts({api, eventView, organization, router}: Props) {
         gridIndex: 1,
         axisLabel: {
           formatter: formatAbbreviatedNumber,
-          color: theme.gray1,
+          color: theme.gray400,
         },
         ...axisLineConfig,
       },
       {
-        // error rate
+        // failure rate
         gridIndex: 2,
         axisLabel: {
           formatter: (value: number) => formatPercentage(value, 2),
-          color: theme.gray1,
+          color: theme.gray400,
         },
         ...axisLineConfig,
       },
@@ -125,13 +125,16 @@ function SidebarCharts({api, eventView, organization, router}: Props) {
         if (seriesName.includes('apdex')) {
           return formatFloat(value, 2);
         }
-        if (seriesName.includes('error_rate')) {
+        if (seriesName.includes('failure_rate')) {
           return formatPercentage(value, 2);
         }
         if (typeof value === 'number') {
           return value.toLocaleString();
         }
         return value;
+      },
+      nameFormatter(value) {
+        return value === 'epm()' ? 'tpm()' : value;
       },
     },
   };
@@ -152,13 +155,13 @@ function SidebarCharts({api, eventView, organization, router}: Props) {
       </ChartTitle>
 
       <ChartTitle top="190px" key="throughput">
-        {t('Throughput')}
-        <QuestionTooltip position="top" title={PERFORMANCE_TERMS.rpm} size="sm" />
+        {t('TPM')}
+        <QuestionTooltip position="top" title={PERFORMANCE_TERMS.tpm} size="sm" />
       </ChartTitle>
 
-      <ChartTitle top="410px" key="error-rate">
-        {t('Error Rate')}
-        <QuestionTooltip position="top" title={PERFORMANCE_TERMS.errorRate} size="sm" />
+      <ChartTitle top="410px" key="failure-rate">
+        {t('Failure Rate')}
+        <QuestionTooltip position="top" title={PERFORMANCE_TERMS.failureRate} size="sm" />
       </ChartTitle>
 
       <ChartZoom
@@ -181,13 +184,13 @@ function SidebarCharts({api, eventView, organization, router}: Props) {
             showLoading={false}
             query={eventView.query}
             includePrevious={false}
-            yAxis={['apdex(300)', 'rpm()', 'error_rate()']}
+            yAxis={['apdex(300)', 'epm()', 'failure_rate()']}
           >
             {({results, errored, loading, reloading}) => {
               if (errored) {
                 return (
                   <ErrorPanel>
-                    <IconWarning color={theme.gray2} size="lg" />
+                    <IconWarning color="gray500" size="lg" />
                   </ErrorPanel>
                 );
               }
@@ -215,7 +218,7 @@ function SidebarCharts({api, eventView, organization, router}: Props) {
 
 const RelativeBox = styled('div')`
   position: relative;
-  margin-bottom: ${space(2)};
+  margin-bottom: ${space(1)};
 `;
 
 const ChartTitle = styled(SectionHeading)<{top: string}>`

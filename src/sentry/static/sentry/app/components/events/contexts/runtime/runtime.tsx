@@ -1,6 +1,6 @@
 import React from 'react';
 
-import ContextBlock from 'app/components/events/contexts/contextBlockV2';
+import ContextBlock from 'app/components/events/contexts/contextBlock';
 
 import getRuntimeKnownData from './getRuntimeKnownData';
 import {RuntimeData, RuntimeKnownDataType} from './types';
@@ -14,7 +14,5 @@ const runTimerKnownDataValues = [RuntimeKnownDataType.NAME, RuntimeKnownDataType
 const Runtime = ({data}: Props) => (
   <ContextBlock knownData={getRuntimeKnownData(data, runTimerKnownDataValues)} />
 );
-
-Runtime.getTitle = () => 'Runtime';
 
 export default Runtime;

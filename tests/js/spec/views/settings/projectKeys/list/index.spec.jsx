@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import React from 'react';
 
 import {mountWithTheme} from 'sentry-test/enzyme';
+
 import ProjectKeys from 'app/views/settings/project/projectKeys/list';
 
 describe('ProjectKeys', function() {
@@ -59,9 +60,12 @@ describe('ProjectKeys', function() {
   });
 
   it('has clippable box', function() {
-    expect(wrapper.find('.clip-fade Button')).toHaveLength(1);
-    wrapper.find('.clip-fade Button').simulate('click');
-    expect(wrapper.find('.clip-fade Button')).toHaveLength(0);
+    const clipFade = wrapper.find('ClipFade');
+    expect(clipFade).toHaveLength(1);
+    const clipFadeButton = clipFade.find('button');
+    expect(clipFadeButton).toHaveLength(1);
+    clipFadeButton.simulate('click');
+    expect(wrapper.find('ClipFade button')).toHaveLength(0);
   });
 
   it('deletes key', function() {

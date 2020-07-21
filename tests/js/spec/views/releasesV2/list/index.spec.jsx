@@ -2,6 +2,7 @@ import React from 'react';
 
 import {mountWithTheme} from 'sentry-test/enzyme';
 import {initializeOrg} from 'sentry-test/initializeOrg';
+
 import ProjectsStore from 'app/stores/projectsStore';
 import ReleaseList from 'app/views/releasesV2/list/';
 
@@ -162,7 +163,7 @@ describe('ReleasesV2List', function() {
     });
   });
 
-  it('calls api with only whitelisted query params', function() {
+  it('calls api with only explicitly permitted query params', function() {
     expect(endpointMock).toHaveBeenCalledWith(
       '/organizations/org-slug/releases/',
       expect.objectContaining({

@@ -1,5 +1,4 @@
 import React from 'react';
-import classNames from 'classnames';
 import styled from '@emotion/styled';
 
 import {t} from 'app/locale';
@@ -53,7 +52,7 @@ class SearchDropdown extends React.PureComponent<Props> {
   renderHeaderItem = (item: SearchGroup) => (
     <SearchDropdownGroup key={item.title}>
       <SearchDropdownGroupTitle>
-        <GroupTitleIcon className={classNames('icon', item.icon)} />
+        {item.icon}
         {item.title && item.title}
         {item.desc && <span>{item.desc}</span>}
       </SearchDropdownGroupTitle>
@@ -132,7 +131,7 @@ const Info = styled('div')`
   display: flex;
   padding: ${space(1)} ${space(2)};
   font-size: ${p => p.theme.fontSizeLarge};
-  color: ${p => p.theme.gray2};
+  color: ${p => p.theme.gray500};
 
   &:not(:last-child) {
     border-bottom: 1px solid ${p => p.theme.borderLight};
@@ -147,21 +146,21 @@ const ListItem = styled('li')`
 
 const SearchDropdownGroup = styled(ListItem)``;
 
-const GroupTitleIcon = styled('span')`
-  margin-right: ${space(1)};
-`;
-
 const SearchDropdownGroupTitle = styled('header')`
   display: flex;
   align-items: center;
 
-  background-color: ${p => p.theme.offWhite};
-  color: ${p => p.theme.gray2};
+  background-color: ${p => p.theme.gray100};
+  color: ${p => p.theme.gray500};
   font-weight: normal;
   font-size: ${p => p.theme.fontSizeMedium};
 
   margin: 0;
   padding: ${space(1)} ${space(2)};
+
+  & > svg {
+    margin-right: ${space(1)};
+  }
 `;
 
 const SearchItemsList = styled('ul')`
@@ -178,7 +177,7 @@ const SearchListItem = styled(ListItem)`
 
   &:hover,
   &.active {
-    background: ${p => p.theme.offWhite};
+    background: ${p => p.theme.gray100};
   }
 `;
 

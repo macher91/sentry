@@ -8,6 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 from sentry.models import Project, ProjectStatus
 from sentry.discover.models import KeyTransaction, MAX_KEY_TRANSACTIONS
 from sentry.api.fields.empty_integer import EmptyIntegerField
+from sentry.api.event_search import get_filter, InvalidSearchQuery
 from sentry.api.serializers.rest_framework import ListField
 from sentry.api.utils import get_date_range_from_params, InvalidParams
 from sentry.constants import ALL_ACCESS_PROJECTS
@@ -217,6 +218,18 @@ class DiscoverSavedQuerySerializer(serializers.Serializer):
         if data["projects"] == ALL_ACCESS_PROJECTS:
             data["projects"] = []
             query["all_projects"] = True
+
+        if "query" in query:
+            try:
+                get_filter(
+                    query["query"],
+                    {
+                        "project_id": data["projects"],
+                        "organization_id": self.context["organization"],
+                    },
+                )
+            except InvalidSearchQuery as err:
+                raise serializers.ValidationError("Cannot save invalid query: {}".format(err))
 
         return {
             "name": data["name"],

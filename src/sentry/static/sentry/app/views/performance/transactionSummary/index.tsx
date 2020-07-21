@@ -3,22 +3,26 @@ import {Params} from 'react-router/lib/Router';
 import {browserHistory} from 'react-router';
 import {Location} from 'history';
 import styled from '@emotion/styled';
-import * as Sentry from '@sentry/browser';
+import isEqual from 'lodash/isEqual';
+import * as Sentry from '@sentry/react';
 
 import {Client} from 'app/api';
 import {t} from 'app/locale';
 import {fetchTotalCount} from 'app/actionCreators/events';
-import {Organization, Project} from 'app/types';
-import withOrganization from 'app/utils/withOrganization';
-import withProjects from 'app/utils/withProjects';
+import {loadOrganizationTags} from 'app/actionCreators/tags';
+import {Organization, Project, GlobalSelection} from 'app/types';
 import SentryDocumentTitle from 'app/components/sentryDocumentTitle';
 import GlobalSelectionHeader from 'app/components/organizations/globalSelectionHeader';
 import {PageContent} from 'app/styles/organization';
 import EventView, {isAPIPayloadSimilar} from 'app/utils/discover/eventView';
+import {isAggregateField} from 'app/utils/discover/fields';
 import {decodeScalar} from 'app/utils/queryString';
-import {stringifyQueryObject} from 'app/utils/tokenizeSearch';
+import {tokenizeSearch, stringifyQueryObject} from 'app/utils/tokenizeSearch';
 import LightWeightNoProjectMessage from 'app/components/lightWeightNoProjectMessage';
 import withApi from 'app/utils/withApi';
+import withGlobalSelection from 'app/utils/withGlobalSelection';
+import withOrganization from 'app/utils/withOrganization';
+import withProjects from 'app/utils/withProjects';
 
 import SummaryContent from './content';
 
@@ -28,6 +32,7 @@ type Props = {
   params: Params;
   organization: Organization;
   projects: Project[];
+  selection: GlobalSelection;
   loadingProjects: boolean;
 };
 
@@ -56,11 +61,13 @@ class TransactionSummary extends React.Component<Props, State> {
   }
 
   componentDidMount() {
+    const {api, organization, selection} = this.props;
     this.fetchTotalCount();
+    loadOrganizationTags(api, organization.slug, selection);
   }
 
   componentDidUpdate(prevProps: Props, prevState: State) {
-    const {location} = this.props;
+    const {api, organization, location, selection} = this.props;
     const {eventView} = this.state;
 
     if (eventView && prevState.eventView) {
@@ -69,6 +76,13 @@ class TransactionSummary extends React.Component<Props, State> {
       if (!isAPIPayloadSimilar(currentQuery, prevQuery)) {
         this.fetchTotalCount();
       }
+    }
+
+    if (
+      !isEqual(prevProps.selection.projects, selection.projects) ||
+      !isEqual(prevProps.selection.datetime, selection.datetime)
+    ) {
+      loadOrganizationTags(api, organization.slug, selection);
     }
   }
 
@@ -158,11 +172,18 @@ function generateSummaryEventView(
   if (transactionName === undefined) {
     return undefined;
   }
-  const conditions = {
-    query: [],
+  // Use the user supplied query but overwrite any transaction or event type
+  // conditions they applied.
+  const query = decodeScalar(location.query.query) || '';
+  const conditions = Object.assign(tokenizeSearch(query), {
     'event.type': ['transaction'],
     transaction: [transactionName],
-  };
+  });
+
+  Object.keys(conditions).forEach(field => {
+    if (isAggregateField(field)) delete conditions[field];
+  });
+
   // Handle duration filters from the latency chart
   if (location.query.startDuration || location.query.endDuration) {
     conditions['transaction.duration'] = [
@@ -179,7 +200,6 @@ function generateSummaryEventView(
       version: 2,
       name: transactionName,
       fields: ['id', 'user', 'transaction.duration', 'timestamp'],
-      orderby: '-transaction.duration',
       query: stringifyQueryObject(conditions),
       projects: [],
     },
@@ -187,4 +207,6 @@ function generateSummaryEventView(
   );
 }
 
-export default withApi(withProjects(withOrganization(TransactionSummary)));
+export default withApi(
+  withGlobalSelection(withProjects(withOrganization(TransactionSummary)))
+);

@@ -5,6 +5,7 @@ import SentryTypes from 'app/sentryTypes';
 import Alert from 'app/components/alert';
 import GroupList from 'app/components/issues//groupList';
 import {t} from 'app/locale';
+import {IconOpen} from 'app/icons';
 
 const ReleaseNewEvents = props => {
   const {release} = props;
@@ -12,11 +13,11 @@ const ReleaseNewEvents = props => {
 
   return (
     <div>
-      <Alert icon="icon-open" iconSize="14px" type="warning">
+      <Alert icon={<IconOpen size="14px" />} type="warning">
         <Link
           to={{
             pathname: `/organizations/${orgId}/issues/`,
-            query: {query: 'first-release:' + release.version},
+            query: {query: `firstRelease:${release.version}`},
           }}
         >
           {t('View new issues seen in this release in the stream')}

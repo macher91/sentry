@@ -6,8 +6,11 @@ type Props = React.ComponentProps<typeof SvgIcon> & {
   isCircled?: boolean;
 };
 
-const IconSubtract = React.forwardRef<SVGSVGElement, Props>(
-  ({isCircled = false, ...props}: Props, ref) => (
+const IconSubtract = React.forwardRef(function IconSubtract(
+  {isCircled = false, ...props}: Props,
+  ref: React.Ref<SVGSVGElement>
+) {
+  return (
     <SvgIcon {...props} data-test-id="icon-subtract" ref={ref}>
       {isCircled ? (
         <React.Fragment>
@@ -15,10 +18,12 @@ const IconSubtract = React.forwardRef<SVGSVGElement, Props>(
           <path d="M11.28,8.75H4.72a.75.75,0,1,1,0-1.5h6.56a.75.75,0,1,1,0,1.5Z" />
         </React.Fragment>
       ) : (
-        <path d="M15.19,8.75H.81a.75.75,0,1,1,0-1.5H15.19a.75.75,0,0,1,0,1.5Z" />
+        <path d="M14,8.75H2a.75.75,0,0,1,0-1.5H14a.75.75,0,0,1,0,1.5Z" />
       )}
     </SvgIcon>
-  )
-);
+  );
+});
+
+IconSubtract.displayName = 'IconSubtract';
 
 export {IconSubtract};

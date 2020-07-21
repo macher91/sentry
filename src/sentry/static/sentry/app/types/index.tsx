@@ -8,7 +8,9 @@ import {
   NOT_INSTALLED,
   PENDING,
 } from 'app/views/organizationIntegrations/constants';
+import {WIDGET_DISPLAY} from 'app/views/dashboards/constants';
 import {Props as AlertProps} from 'app/components/alert';
+import {Query as DiscoverQuery} from 'app/views/discover/types';
 
 declare global {
   interface Window {
@@ -64,10 +66,8 @@ export type Avatar = {
   avatarType: 'letter_avatar' | 'upload' | 'gravatar';
 };
 
-export type Actor = {
-  id: string;
+export type Actor = User & {
   type: 'user' | 'team';
-  name: string;
 };
 
 /**
@@ -90,14 +90,24 @@ export type OrganizationSummary = {
   slug: string;
 };
 
+export type Relay = {
+  publicKey: string;
+  name: string;
+  created?: string;
+  lastModified?: string;
+  description?: string;
+};
+
 /**
  * Detailed organization (e.g. when requesting details for a single org)
  *
  * Lightweight in this case means it does not contain `projects` or `teams`
  */
 export type LightWeightOrganization = OrganizationSummary & {
+  relayPiiConfig: string;
   scrubIPAddresses: boolean;
   attachmentsRole: string;
+  eventsMemberAdmin: boolean;
   sensitiveFields: string[];
   openMembership: boolean;
   quota: {
@@ -120,9 +130,9 @@ export type LightWeightOrganization = OrganizationSummary & {
   allowSharedIssues: boolean;
   dataScrubberDefaults: boolean;
   dataScrubber: boolean;
-  role?: string;
   onboardingTasks: OnboardingTaskStatus[];
-  trustedRelays: string[];
+  trustedRelays: Relay[];
+  role?: string;
 };
 
 /**
@@ -141,6 +151,7 @@ export type AvatarProject = {
 
 export type Project = {
   id: string;
+  dateCreated: string;
   isMember: boolean;
   teams: Team[];
   features: string[];
@@ -149,10 +160,13 @@ export type Project = {
   hasUserReports?: boolean;
   hasAccess: boolean;
   firstEvent: 'string' | null;
+  firstTransactionEvent: boolean;
 
   // XXX: These are part of the DetailedProject serializer
   plugins: Plugin[];
   processingIssues: number;
+  relayPiiConfig: string;
+  builtinSymbolSources?: string[];
 } & AvatarProject;
 
 export type MinimalProject = Pick<Project, 'id' | 'slug'>;
@@ -208,7 +222,7 @@ export type EventAttachment = {
   event_id: string;
 };
 
-export type EntryTypeData = {[key: string]: any | any[]};
+export type EntryTypeData = Record<string, any | Array<any>>;
 
 type EntryType = {
   data: EntryTypeData;
@@ -232,18 +246,9 @@ type RuntimeContext = {
   name?: string;
 };
 
-type TraceContext = {
-  type: 'trace';
-  op: string;
-  description: string;
-  parent_span_id: string;
-  span_id: string;
-  trace_id: string;
-};
-
 type EventContexts = {
   runtime?: RuntimeContext;
-  trace?: TraceContext;
+  trace?: TraceContextType;
 };
 
 type SentryEventBase = {
@@ -255,11 +260,13 @@ type SentryEventBase = {
   metadata: EventMetadata;
   contexts: EventContexts;
   context?: {[key: string]: any};
+  device?: {[key: string]: any};
   packages?: {[key: string]: string};
   user: EventUser;
   message: string;
   platform?: PlatformKey;
   dateCreated?: string;
+  dateReceived?: string;
   endTimestamp?: number;
   entries: EntryType[];
 
@@ -276,6 +283,11 @@ type SentryEventBase = {
 
   oldestEventID: string | null;
   latestEventID: string | null;
+
+  groupingConfig: {
+    id: string;
+    enhancements: string;
+  };
 };
 
 export type SentryTransactionEvent = {
@@ -336,9 +348,10 @@ type UserEnrolledAuthenticator = {
   id: EnrolledAuthenticator['authId'];
 };
 
-export type User = AvatarUser & {
+export type User = Omit<AvatarUser, 'options'> & {
   lastLogin: string;
   isSuperuser: boolean;
+  isAuthenticated: boolean;
   emails: {
     is_verified: boolean;
     id: string;
@@ -428,6 +441,8 @@ export type AppOrProviderOrPlugin =
   | PluginWithProjectList
   | DocumentIntegration;
 
+export type IntegrationType = 'document' | 'plugin' | 'first_party' | 'sentry_app';
+
 export type DocumentIntegration = {
   slug: string;
   name: string;
@@ -438,12 +453,14 @@ export type DocumentIntegration = {
   resourceLinks: Array<{title: string; url: string}>;
 };
 
+export type DateString = Date | string | null;
+
 export type GlobalSelection = {
   projects: number[];
   environments: string[];
   datetime: {
-    start: Date | string | null;
-    end: Date | string | null;
+    start: DateString;
+    end: DateString;
     period: string;
     utc: boolean;
   };
@@ -669,6 +686,9 @@ type IntegrationAspects = {
     buttonText: string;
     noticeText: string;
   };
+  configure_integration?: {
+    title: string;
+  };
 };
 
 type BaseIntegrationProvider = {
@@ -873,7 +893,17 @@ export type UserReport = {
   email: string;
 };
 
-export type Release = {
+export type Release = BaseRelease &
+  ReleaseData & {
+    projects: ReleaseProject[];
+  };
+
+export type ReleaseWithHealth = BaseRelease &
+  ReleaseData & {
+    projects: Required<ReleaseProject>[];
+  };
+
+type ReleaseData = {
   commitCount: number;
   data: {};
   lastDeploy?: Deploy;
@@ -884,26 +914,44 @@ export type Release = {
   authors: User[];
   owner?: any; // TODO(ts)
   newGroups: number;
-  projects: ReleaseProject[];
-} & BaseRelease;
-
-export type ReleaseProject = {
-  slug: string;
-  name: string;
-  id: number;
-  platform: string;
-  platforms: string[];
-  newGroups: number;
-  healthData: Health;
+  versionInfo: VersionInfo;
+  fileCount: number | null;
 };
 
-export type BaseRelease = {
+type BaseRelease = {
   dateReleased: string;
   url: string;
   dateCreated: string;
   version: string;
   shortVersion: string;
   ref: string;
+};
+
+export type ReleaseProject = {
+  slug: string;
+  name: string;
+  id: number;
+  platform: PlatformKey;
+  platforms: PlatformKey[];
+  newGroups: number;
+  healthData?: Health;
+};
+
+export type ReleaseMeta = {
+  commitCount: number;
+  commitFilesChanged: number;
+  deployCount: number;
+  releaseFileCount: number;
+  version: string;
+  projects: ReleaseProject[];
+  versionInfo: VersionInfo;
+};
+
+export type VersionInfo = {
+  buildHash: string | null;
+  description: string;
+  package: string | null;
+  version: {raw: string};
 };
 
 export type Deploy = {
@@ -959,19 +1007,24 @@ export type NewQuery = {
   id: string | undefined;
   version: SavedQueryVersions;
   name: string;
-  projects: Readonly<number[]>;
+  createdBy?: User;
+
+  // Query and Table
+  query: string;
   fields: Readonly<string[]>;
   widths?: Readonly<string[]>;
-  query: string;
   orderby?: string;
+
+  // GlobalSelectionHeader
+  projects: Readonly<number[]>;
+  environment?: Readonly<string[]>;
   range?: string;
   start?: string;
   end?: string;
-  environment?: Readonly<string[]>;
-  tags?: Readonly<string[]>;
+
+  // Graph
   yAxis?: string;
   display?: string;
-  createdBy?: User;
 };
 
 export type SavedQuery = NewQuery & {
@@ -989,6 +1042,7 @@ export type SavedQueryState = {
 export type SelectValue<T> = {
   label: string;
   value: T;
+  disabled?: boolean;
 };
 
 /**
@@ -1091,6 +1145,8 @@ export type Tag = {
   predefined?: boolean;
 };
 
+export type TagCollection = {[key: string]: Tag};
+
 export type TagValue = {
   count: number;
   name: string;
@@ -1110,9 +1166,12 @@ export type Level = 'error' | 'fatal' | 'info' | 'warning' | 'sample';
 export type Meta = {
   chunks: Array<Chunks>;
   len: number;
-  rem: Array<Array<string | number>>;
-  err: Array<any>;
+  rem: Array<MetaRemark>;
+  err: Array<MetaError>;
 };
+
+export type MetaError = [string, any];
+export type MetaRemark = Array<string | number>;
 
 export type Chunks = {
   text: string;
@@ -1194,4 +1253,96 @@ export type PlatformIntegration = {
   language: string;
   link: string | null;
   name: string;
+};
+
+export type EventGroupComponent = {
+  contributes: boolean;
+  hint: string | null;
+  id: string;
+  name: string | null;
+  values: EventGroupComponent[] | string[];
+};
+export type EventGroupingConfig = {
+  base: string | null;
+  changelog: string;
+  delegates: string[];
+  hidden: boolean;
+  id: string;
+  latest: boolean;
+  risk: number;
+  strategies: string[];
+};
+
+type EventGroupVariantKey = 'custom-fingerprint' | 'app' | 'default' | 'system';
+
+export enum EventGroupVariantType {
+  CUSTOM_FINGERPRINT = 'custom-fingerprint',
+  COMPONENT = 'component',
+  SALTED_COMPONENT = 'salted-component',
+}
+
+export type EventGroupVariant = {
+  description: string | null;
+  hash: string | null;
+  hashMismatch: boolean;
+  key: EventGroupVariantKey;
+  type: EventGroupVariantType;
+  values?: string;
+  component?: EventGroupComponent;
+  config?: EventGroupingConfig;
+};
+
+export type SourceMapsArchive = {
+  id: number;
+  type: 'release';
+  name: string;
+  date: string;
+  fileCount: number;
+};
+
+export type Artifact = {
+  dateCreated: string;
+  dist: string | null;
+  id: string;
+  name: string;
+  sha1: string;
+  size: number;
+  headers: {'Content-Type': string};
+};
+
+export type Widget = {
+  queries: {
+    discover: DiscoverQuery[];
+  };
+  title: React.ReactNode;
+  type: WIDGET_DISPLAY;
+  fieldLabelMap?: object;
+  yAxisMapping?: [number[], number[]];
+  includeReleases?: boolean;
+  includePreviousPeriod?: boolean;
+};
+
+export type EventGroupInfo = Record<EventGroupVariantKey, EventGroupVariant>;
+
+export type PlatformType = 'java' | 'csharp' | 'other';
+
+export type Frame = {
+  filename: string;
+  module: string;
+  map: string;
+  preventCollapse: () => void;
+  errors: Array<any>;
+  context: Array<[number, string]>;
+  vars: {[key: string]: any};
+  inApp: boolean;
+  function?: string;
+  absPath?: string;
+  rawFunction?: string;
+  platform: PlatformType;
+  lineNo?: number;
+  colNo?: number;
+  package?: string;
+  origAbsPath?: string;
+  mapUrl?: string;
+  instructionAddr?: string;
 };

@@ -7,6 +7,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.core.urlresolvers import reverse
 from uuid import uuid4
+from rest_framework.exceptions import ParseError
 
 from sentry.testutils import APITestCase, SnubaTestCase
 from sentry.testutils.helpers.datetime import before_now, iso_format
@@ -37,6 +38,14 @@ class OrganizationEventsFacetsEndpointTest(SnubaTestCase, APITestCase):
         assert actual is not None, "Could not find {} facet in {}".format(key, response.data)
         assert "topValues" in actual
         assert sorted(expected) == sorted(actual["topValues"])
+
+    def test_performance_view_feature(self):
+        with self.feature(
+            {"organizations:discover-basic": False, "organizations:performance-view": True}
+        ):
+            response = self.client.get(self.url, data={"project": self.project.id}, format="json")
+
+        assert response.status_code == 200, response.content
 
     def test_simple(self):
         self.store_event(
@@ -414,6 +423,14 @@ class OrganizationEventsFacetsEndpointTest(SnubaTestCase, APITestCase):
         assert response.data == {
             "detail": "Parse error at '\n\n\n\n' (column 1). This is commonly caused by unmatched parentheses. Enclose any text in double quotes."
         }
+
+    @mock.patch("sentry.snuba.discover.raw_query")
+    def test_handling_snuba_errors(self, mock_query):
+        mock_query.side_effect = ParseError("test")
+        with self.feature(self.feature_list):
+            response = self.client.get(self.url, format="json")
+
+        assert response.status_code == 400, response.content
 
     def test_environment(self):
         self.store_event(

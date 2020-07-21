@@ -1,26 +1,14 @@
 name: acceptance
-on: pull_request
+on:
+  push:
+    branches:
+      - master
+  pull_request:
 
 jobs:
-    percynonce:
-      name: Generate Percy nonce
-      runs-on: ubuntu-latest
-      steps:
-        - name: Generate Percy nonce
-          if: always()
-          run: |
-            echo ${{ github.run_id }}.$(($(date +%s))) > nonce.txt
-
-        - name: Upload nonce as artifact
-          if: always()
-          uses: actions/upload-artifact@v1
-          with:
-            name: percy
-            path: nonce.txt
-
     acceptance:
-      needs: [percynonce]
       runs-on: ubuntu-16.04
+      continue-on-error: true
       strategy:
         matrix:
           instance: [0, 1, 2]
@@ -37,7 +25,6 @@ jobs:
         DJANGO_VERSION: ">=1.11,<1.12"
 
         # Node configuration
-        # node's version is pinned by .nvmrc and is autodetected by `nvm install`.
         NODE_OPTIONS: --max-old-space-size=4096
         NODE_ENV: development
 
@@ -51,12 +38,10 @@ jobs:
         # The hostname used to communicate with the PostgreSQL from sentry
         DATABASE_URL: postgresql://postgres:postgres@localhost/sentry
 
-        # Percy config
-        PERCY_TOKEN: ${{ secrets.PERCY_TOKEN }}
-        PERCY_PROJECT: ${{ secrets.PERCY_PROJECT }}
-
         # Number of matrix instances
-        TOTAL_TEST_GROUPS: 3
+        TOTAL_TEST_GROUPS: ${{ strategy.job-total }}
+
+        VISUAL_SNAPSHOT_ENABLE: 1
 
       services:
         clickhouse:
@@ -119,45 +104,42 @@ jobs:
         # Checkout codebase
         - uses: actions/checkout@v2
 
-        # See https://github.com/actions/cache/blob/master/examples.md#node---yarn for example
-        - name: Get yarn cache dir
-          id: yarn-cache-dir-path
-          run: echo "::set-output name=dir::$(yarn cache dir)"
+        # Install node
+        - uses: volta-cli/action@v1
 
-        # Use nvmrc so we don't have yet another place node version is defined
-        - name: Get node version from .nvmrc
-          id: nvmrc
-          run: echo "::set-output name=version::$(cat .nvmrc)"
+        # Yarn
+        #   - See https://github.com/actions/cache/blob/master/examples.md#node---yarn for example
+        # Python
+        #   Use `.python-version` to avoid duplication
+        #   XXX: can't actually read from .python-version because GitHub Actions
+        #   does not support our version (2.7.16)
+        #
+        #   XXX: Using `2.7` as GHA image only seems to keep one minor version around and will break
+        #   CI if we pin it to a specific patch version.
+        - name: Set up outputs
+          id: config
+          env:
+            MATRIX_INSTANCE: ${{ matrix.instance }}
+          run: |
+            echo "::set-output name=yarn-cache-dir::$(yarn cache dir)"
+            echo "::set-output name=python-version::2.7"
+            echo "::set-output name=matrix-instance-number::$(($MATRIX_INSTANCE+1))"
+
 
         # yarn cache
         - uses: actions/cache@v1
           id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
           with:
-            path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+            path: ${{ steps.config.outputs.yarn-cache-dir }}
             key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
             restore-keys: |
               ${{ runner.os }}-yarn-
 
-        # Setup node
-        - uses: actions/setup-node@v1
-          with:
-            node-version: ${{ steps.nvmrc.outputs.version }}
-
-        # Use `.python-version` to avoid duplication
-        # XXX: can't actually read from .python-version because GitHub Actions
-        # does not support our version (2.7.16)
-        #
-        # XXX: Using `2.7` as GHA image only seems to keep one minor version around and will break
-        # CI if we pin it to a specific patch version.
-        - name: Get python version from `.python-version`
-          id: python-version
-          run: echo "::set-output name=version::2.7"
-
         # setup python
-        - name: Set up Python ${{ steps.python-version.outputs.version }}
+        - name: Set up Python ${{ steps.config.outputs.python-version }}
           uses: actions/setup-python@v1
           with:
-            python-version: ${{ steps.python-version.outputs.version}}
+            python-version: ${{ steps.config.outputs.python-version}}
 
         # setup pip
         - name: Install pip
@@ -195,35 +177,47 @@ jobs:
             pip install wheel # GitHub Actions does not have this installed by default (unlike Travis)
             pip install -U -e ".[dev]"
             psql -c 'create database sentry;' -h localhost -U postgres
-
-        - name: Download percy nonce
-          uses: actions/download-artifact@v1
-          with:
-            name: percy
-
-        - name: Set percy nonce
-          id: set_percy_nonce
-          run: |
-            echo "::set-output name=percy_nonce::$(<percy/nonce.txt)"
-
-        - name: Build platform assets
-          run: |
             sentry init
-            make build-platform-assets
 
         - name: webpack
           run: |
             yarn webpack --display errors-only
 
-        - name: Acceptance tests (#${{ matrix.instance }})
+        # Setup custom pytest matcher, see https://github.com/actions/setup-node/issues/97
+        - name: Add pytest log matcher
           if: always()
-          uses: percy/exec-action@v0.3.0
-          with:
-            command: "make run-acceptance"
+          run: |
+            echo "::remove-matcher owner=pytest::"
+            echo "::add-matcher::.github/pytest.json"
+
+        - name: Run acceptance tests (#${{ steps.config.outputs.matrix-instance-number }} of ${{ strategy.job-total }})
+          if: always()
+          run: |
+            mkdir -p .artifacts/visual-snapshots/acceptance
+            mkdir -p .artifacts/visual-snapshots/acceptance-mobile
+            make run-acceptance
           env:
             USE_SNUBA: 1
             TEST_GROUP: ${{ matrix.instance }}
-            PERCY_TOKEN: ${{ secrets.PERCY_TOKEN }}
-            PERCY_PROJECT: ${{ secrets.PERCY_PROJECT }}
-            PERCY_PARALLEL_TOTAL: ${{ env.TOTAL_TEST_GROUPS }}
-            PERCY_PARALLEL_NONCE: ${{ steps.set_percy_nonce.outputs.percy_nonce }}
+
+        - name: Save snapshots
+          if: always()
+          uses: getsentry/action-visual-snapshot@v2
+          with:
+            save-only: true
+            snapshot-path: .artifacts/visual-snapshots
+
+
+    visual-diff:
+      if: ${{ github.ref != 'refs/heads/master' }}
+      needs: acceptance
+      runs-on: ubuntu-16.04
+
+      steps:
+        - name: Diff snapshots
+          id: visual-snapshots-diff
+          uses: getsentry/action-visual-snapshot@v2
+          with:
+            githubToken: ${{ secrets.GITHUB_TOKEN }}
+            gcs-bucket: 'sentry-visual-snapshots'
+            gcp-service-account-key: ${{ secrets.SNAPSHOT_GOOGLE_SERVICE_ACCOUNT_KEY }}

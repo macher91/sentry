@@ -1,8 +1,9 @@
 import React from 'react';
 
-import {Client} from 'app/api';
 import {mountWithTheme} from 'sentry-test/enzyme';
 import {initializeOrg} from 'sentry-test/initializeOrg';
+
+import {Client} from 'app/api';
 import IntegrationListDirectory from 'app/views/organizationIntegrations/integrationListDirectory';
 
 const mockResponse = mocks => {
@@ -46,7 +47,7 @@ describe('IntegrationListDirectory', function() {
     it('shows installed integrations at the top in order of weight', async function() {
       expect(wrapper.find('SearchBar').exists()).toBeTruthy();
       expect(wrapper.find('PanelBody').exists()).toBeTruthy();
-      expect(wrapper.find('IntegrationRow')).toHaveLength(11);
+      expect(wrapper.find('IntegrationRow')).toHaveLength(13);
 
       [
         'bitbucket',
@@ -54,9 +55,11 @@ describe('IntegrationListDirectory', function() {
         'my-headband-washer-289499',
         'clickup',
         'asayer',
+        'bitbucket_release_pipe',
         'datadog',
         'fullstory',
         'msteams',
+        'netlify',
         'rocketchat',
         'amazon-sqs',
         'la-croix-monitor',

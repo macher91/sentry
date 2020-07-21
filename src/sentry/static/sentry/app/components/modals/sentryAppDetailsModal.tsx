@@ -238,7 +238,7 @@ const Description = styled('div')`
 `;
 
 const Author = styled('div')`
-  color: ${p => p.theme.gray2};
+  color: ${p => p.theme.gray500};
 `;
 
 const DisabledNotice = styled(({reason, ...p}: {reason: React.ReactNode}) => (
@@ -251,7 +251,7 @@ const DisabledNotice = styled(({reason, ...p}: {reason: React.ReactNode}) => (
   align-items: center;
   flex: 1;
   grid-template-columns: max-content 1fr;
-  color: ${p => p.theme.red};
+  color: ${p => p.theme.red400};
   font-size: 0.9em;
 `;
 

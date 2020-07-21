@@ -64,47 +64,18 @@ if getattr(settings, "DEBUG_VIEWS", settings.DEBUG):
 if settings.DEBUG:
     urlpatterns += [
         url(
-            r"^_static/[^/]+/[^/]+/images/favicon\.ico$",
+            r"^_static/[^/]+/[^/]+/images/favicon\.(ico|png)$",
             generic.dev_favicon,
             name="sentry-dev-favicon",
         )
     ]
 
 urlpatterns += [
-    # Store endpoints first since they are the most active
-    url(r"^api/store/$", api.StoreView.as_view(), name="sentry-api-store"),
-    url(r"^api/(?P<project_id>[\w_-]+)/store/$", api.StoreView.as_view(), name="sentry-api-store"),
-    url(
-        r"^api/(?P<project_id>[\w_-]+)/minidump/?$",
-        api.MinidumpView.as_view(),
-        name="sentry-api-minidump",
-    ),
-    url(
-        r"^api/(?P<project_id>[\w_-]+)/events/(?P<event_id>[\w-]+)/attachments/$",
-        api.EventAttachmentStoreView.as_view(),
-        name="sentry-api-event-attachment",
-    ),
-    url(
-        r"^api/(?P<project_id>[\w_-]+)/unreal/(?P<sentry_key>\w+)/$",
-        api.UnrealView.as_view(),
-        name="sentry-api-unreal",
-    ),
-    url(
-        r"^api/(?P<project_id>\d+)/security/$",
-        api.SecurityReportView.as_view(),
-        name="sentry-api-security-report",
-    ),
-    url(  # This URL to be deprecated
-        r"^api/(?P<project_id>\d+)/csp-report/$",
-        api.SecurityReportView.as_view(),
-        name="sentry-api-csp-report",
-    ),
     url(
         r"^api/(?P<project_id>[\w_-]+)/crossdomain\.xml$",
         api.crossdomain_xml,
         name="sentry-api-crossdomain-xml",
     ),
-    url(r"^api/store/schema$", api.StoreSchemaView.as_view(), name="sentry-api-store-schema"),
     # Frontend client config
     url(r"^api/client-config/?$", api.ClientConfigView.as_view(), name="sentry-api-client-config"),
     # The static version is either a 10 digit timestamp, a sha1, or md5 hash
@@ -475,6 +446,7 @@ urlpatterns += [
                     name="sentry-organization-issue-list",
                 ),
                 url(
+                    # See src.sentry.models.group.Group.get_absolute_url if this changes
                     r"^(?P<organization_slug>[\w_-]+)/issues/(?P<group_id>\d+)/$",
                     react_page_view,
                     name="sentry-organization-issue",
@@ -631,6 +603,8 @@ urlpatterns += [
                 url(r"^vsts/", include("sentry.integrations.vsts.urls")),
                 url(r"^bitbucket/", include("sentry.integrations.bitbucket.urls")),
                 url(r"^bitbucket-server/", include("sentry.integrations.bitbucket_server.urls")),
+                url(r"^vercel/", include("sentry.integrations.vercel.urls")),
+                url(r"^msteams/", include("sentry.integrations.msteams.urls")),
             ]
         ),
     ),

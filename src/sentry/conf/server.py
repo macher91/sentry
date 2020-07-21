@@ -502,6 +502,9 @@ CELERY_DEFAULT_ROUTING_KEY = "default"
 CELERY_CREATE_MISSING_QUEUES = True
 CELERY_REDIRECT_STDOUTS = False
 CELERYD_HIJACK_ROOT_LOGGER = False
+CELERY_TASK_SERIALIZER = "pickle"
+CELERY_RESULT_SERIALIZER = "pickle"
+CELERY_ACCEPT_CONTENT = {"pickle"}
 CELERY_IMPORTS = (
     "sentry.data_export.tasks",
     "sentry.discover.tasks",
@@ -565,6 +568,7 @@ CELERY_QUEUES = [
     Queue("events.save_event", routing_key="events.save_event"),
     Queue("files.delete", routing_key="files.delete"),
     Queue("incidents", routing_key="incidents"),
+    Queue("incident_snapshots", routing_key="incident_snapshots"),
     Queue("integrations", routing_key="integrations"),
     Queue("merge", routing_key="merge"),
     Queue("options", routing_key="options"),
@@ -711,11 +715,7 @@ LOGGING = {
     "handlers": {
         "null": {"class": "logging.NullHandler"},
         "console": {"class": "sentry.logging.handlers.StructLogHandler"},
-        "internal": {
-            "level": "ERROR",
-            "filters": ["sentry:internal"],
-            "class": "sentry_sdk.integrations.logging.EventHandler",
-        },
+        "internal": {"level": "ERROR", "class": "sentry_sdk.integrations.logging.EventHandler"},
         "metrics": {
             "level": "WARNING",
             "filters": ["important_django_request"],
@@ -723,16 +723,15 @@ LOGGING = {
         },
         "django_internal": {
             "level": "WARNING",
-            "filters": ["sentry:internal", "important_django_request"],
+            "filters": ["important_django_request"],
             "class": "sentry_sdk.integrations.logging.EventHandler",
         },
     },
     "filters": {
-        "sentry:internal": {"()": "sentry.utils.sdk.SentryInternalFilter"},
         "important_django_request": {
             "()": "sentry.logging.handlers.MessageContainsFilter",
             "contains": ["CSRF"],
-        },
+        }
     },
     "root": {"level": "NOTSET", "handlers": ["console", "internal"]},
     # LOGGING.overridable is a list of loggers including root that will change
@@ -741,6 +740,7 @@ LOGGING = {
     "loggers": {
         "celery": {"level": "WARNING"},
         "sentry": {"level": "INFO"},
+        "sentry_plugins": {"level": "INFO"},
         "sentry.files": {"level": "WARNING"},
         "sentry.minidumps": {"handlers": ["internal"], "propagate": False},
         "sentry.interfaces": {"handlers": ["internal"], "propagate": False},
@@ -798,8 +798,12 @@ SENTRY_FEATURES = {
     "auth:register": True,
     # Enable advanced search features, like negation and wildcard matching.
     "organizations:advanced-search": True,
+    # Enable android mappings in processing section of settings.
+    "organizations:android-mappings": False,
     # Enable obtaining and using API keys.
     "organizations:api-keys": False,
+    # Move release artifacts to settings.
+    "organizations:artifacts-in-settings": True,
     # Enable explicit use of AND and OR in search.
     "organizations:boolean-search": False,
     # Enable creating organizations within sentry (if SENTRY_SINGLE_ORGANIZATION
@@ -817,12 +821,12 @@ SENTRY_FEATURES = {
     "organizations:custom-symbol-sources": True,
     # Enable the events stream interface.
     "organizations:events": False,
-    # Enable events v2 instead of the events stream
-    "organizations:events-v2": False,
     # Enable discover 2 basic functions
-    "organizations:discover-basic": False,
+    "organizations:discover-basic": True,
     # Enable discover 2 custom queries and saved queries
-    "organizations:discover-query": False,
+    "organizations:discover-query": True,
+    # Enable create alert rule on the discover page
+    "organizations:create-from-discover": False,
     # Enable Performance view
     "organizations:performance-view": False,
     # Enable multi project selection
@@ -834,7 +838,7 @@ SENTRY_FEATURES = {
     # Lets organizations manage grouping configs
     "organizations:set-grouping-config": False,
     # Enable Releases v2 feature
-    "organizations:releases-v2": False,
+    "organizations:releases-v2": True,
     # Enable rule page.
     "organizations:rule-page": False,
     # Enable incidents feature
@@ -846,7 +850,18 @@ SENTRY_FEATURES = {
     # issues on external services.
     "organizations:integrations-issue-sync": True,
     # Enable interface functionality to receive event hooks.
-    "organizations:integrations-event-hooks": False,
+    "organizations:integrations-event-hooks": True,
+    # Enable integration functionality to work with alert rules
+    "organizations:integrations-alert-rule": True,
+    # Enable integration functionality to work with alert rules (specifically chat integrations)
+    "organizations:integrations-chat-unfurl": True,
+    # Enable integration functionality to work with alert rules (specifically indicdent)
+    # management integrations)
+    "organizations:integrations-incident-management": True,
+    # Enable the Vercel integration
+    "organizations:integrations-vercel": False,
+    # Enable the MsTeams integration
+    "organizations:integrations-msteams": False,
     # Enable data forwarding functionality for organizations.
     "organizations:data-forwarding": True,
     # Enable experimental performance improvements.
@@ -862,7 +877,7 @@ SENTRY_FEATURES = {
     # customized with SENTRY_ORG_SUBDOMAIN_TEMPLATE)
     "organizations:org-subdomains": False,
     # Enable access to more advanced (alpha) datascrubbing settings.
-    "organizations:datascrubbers-v2": False,
+    "organizations:datascrubbers-v2": True,
     # Enable the new version of interface/breadcrumbs
     "organizations:breadcrumbs-v2": False,
     # Enable usage of external relays, for use with Relay. See
@@ -945,14 +960,28 @@ SENTRY_FRONTEND_REQUESTS_DSN = None
 # Configuration for JavaScript's whitelistUrls - defaults to ALLOWED_HOSTS
 SENTRY_FRONTEND_WHITELIST_URLS = None
 
-# Sample rate for Sentry transactions
+# ----
+# APM config
+# ----
+
+# sample rate for transactions initiated from the frontend
 SENTRY_APM_SAMPLING = 0
 
 # Sample rate for symbolicate_event task transactions
-SENTRY_SYMBOLICATE_EVENT_APM_SAMPLING = 0.1
+SENTRY_SYMBOLICATE_EVENT_APM_SAMPLING = 0
 
 # Sample rate for the process_event task transactions
-SENTRY_PROCESS_EVENT_APM_SAMPLING = 0.01
+SENTRY_PROCESS_EVENT_APM_SAMPLING = 0
+
+# sample rate for the relay projectconfig endpoint
+SENTRY_RELAY_ENDPOINT_APM_SAMPLING = 0
+
+# sample rate for ingest consumer processing functions
+SENTRY_INGEST_CONSUMER_APM_SAMPLING = 0
+
+# ----
+# end APM config
+# ----
 
 # DSN to use for Sentry monitors
 SENTRY_MONITOR_DSN = None
@@ -1047,6 +1076,10 @@ SENTRY_CACHE_OPTIONS = {}
 # Attachment blob cache backend
 SENTRY_ATTACHMENTS = "sentry.attachments.default.DefaultAttachmentCache"
 SENTRY_ATTACHMENTS_OPTIONS = {}
+
+# Events blobs processing backend
+SENTRY_EVENT_PROCESSING_STORE = "sentry.eventstore.processing.default.DefaultEventProcessingStore"
+SENTRY_EVENT_PROCESSING_STORE_OPTIONS = {}
 
 # The internal Django cache is still used in many places
 # TODO(dcramer): convert uses over to Sentry's backend
@@ -1446,7 +1479,7 @@ SENTRY_DEVSERVICES = {
         ),
     },
     "clickhouse": {
-        "image": "yandex/clickhouse-server:19.11",
+        "image": "yandex/clickhouse-server:19.17.4.11",
         "ports": {"9000/tcp": 9000, "9009/tcp": 9009, "8123/tcp": 8123},
         "ulimits": [{"name": "nofile", "soft": 262144, "hard": 262144}],
         "volumes": {"clickhouse": {"bind": "/var/lib/clickhouse"}},
@@ -1493,7 +1526,7 @@ SENTRY_DEVSERVICES = {
         "command": ["run"],
         "only_if": lambda settings, options: options.get("symbolicator.enabled"),
     },
-    "reverse_proxy": {
+    "proxy": {
         "image": "nginx:1.16.1",
         "ports": {"80/tcp": SENTRY_REVERSE_PROXY_PORT},
         "volumes": {REVERSE_PROXY_CONFIG: {"bind": "/etc/nginx/nginx.conf"}},
@@ -1542,6 +1575,8 @@ SENTRY_DEFAULT_INTEGRATIONS = (
     "sentry.integrations.vsts.VstsIntegrationProvider",
     "sentry.integrations.vsts_extension.VstsExtensionIntegrationProvider",
     "sentry.integrations.pagerduty.integration.PagerDutyIntegrationProvider",
+    "sentry.integrations.vercel.VercelIntegrationProvider",
+    "sentry.integrations.msteams.MsTeamsIntegrationProvider",
 )
 
 
@@ -1734,7 +1769,7 @@ SENTRY_BUILTIN_SOURCES = {
 }
 
 # Relay
-# List of PKs whitelisted by Sentry.  All relays here are always
+# List of PKs explicitly allowed by Sentry.  All relays here are always
 # registered as internal relays.
 SENTRY_RELAY_WHITELIST_PK = [
     # NOTE (RaduW) This is the relay key for the relay instance used by devservices.
@@ -1744,7 +1779,7 @@ SENTRY_RELAY_WHITELIST_PK = [
 ]
 
 # When open registration is not permitted then only relays in the
-# whitelist can register.
+# list of explicitly allowed relays can register.
 SENTRY_RELAY_OPEN_REGISTRATION = False
 
 # GeoIP
@@ -1781,6 +1816,7 @@ KAFKA_CLUSTERS = {
 KAFKA_EVENTS = "events"
 KAFKA_OUTCOMES = "outcomes"
 KAFKA_EVENTS_SUBSCRIPTIONS_RESULTS = "events-subscription-results"
+KAFKA_TRANSACTIONS_SUBSCRIPTIONS_RESULTS = "transactions-subscription-results"
 KAFKA_INGEST_EVENTS = "ingest-events"
 KAFKA_INGEST_ATTACHMENTS = "ingest-attachments"
 KAFKA_INGEST_TRANSACTIONS = "ingest-transactions"
@@ -1791,6 +1827,10 @@ KAFKA_TOPICS = {
     KAFKA_EVENTS_SUBSCRIPTIONS_RESULTS: {
         "cluster": "default",
         "topic": KAFKA_EVENTS_SUBSCRIPTIONS_RESULTS,
+    },
+    KAFKA_TRANSACTIONS_SUBSCRIPTIONS_RESULTS: {
+        "cluster": "default",
+        "topic": KAFKA_TRANSACTIONS_SUBSCRIPTIONS_RESULTS,
     },
     # Topic for receiving simple events (error events without attachments) from Relay
     KAFKA_INGEST_EVENTS: {"cluster": "default", "topic": KAFKA_INGEST_EVENTS},
@@ -1886,3 +1926,9 @@ SENTRY_REQUEST_METRIC_ALLOWED_PATHS = (
     "sentry.incidents.endpoints",
 )
 SENTRY_MAIL_ADAPTER_BACKEND = "sentry.mail.adapter.MailAdapter"
+
+# Project ID used by synthetic monitoring
+# Synthetic monitoring recurringly send events, prepared with specific
+# attributes, which can be identified through the whole processing pipeline and
+# observed mainly for producing stable metrics.
+SENTRY_SYNTHETIC_MONITORING_PROJECT_ID = None

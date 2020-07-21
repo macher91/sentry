@@ -56,7 +56,7 @@ setup_alert = {
     "text": "Your Bitbucket Server instance must be able to communicate with Sentry."
     " Sentry makes outbound requests from a [static set of IP"
     " addresses](https://docs.sentry.io/ip-ranges/) that you may wish"
-    " to whitelist to support this integration.",
+    " to explicitly allow in your firewall to support this integration.",
 }
 
 metadata = IntegrationMetadata(
@@ -297,7 +297,7 @@ class BitbucketServerIntegrationProvider(IntegrationProvider):
     def get_pipeline_views(self):
         return [InstallationConfigView(), OAuthLoginView(), OAuthCallbackView()]
 
-    def post_install(self, integration, organization):
+    def post_install(self, integration, organization, extra=None):
         repo_ids = Repository.objects.filter(
             organization_id=organization.id,
             provider__in=["bitbucket_server", "integrations:bitbucket_server"],

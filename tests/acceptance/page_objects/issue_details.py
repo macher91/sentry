@@ -8,22 +8,19 @@ class IssueDetailsPage(BasePage):
     def __init__(self, browser, client):
         super(IssueDetailsPage, self).__init__(browser)
         self.client = client
-        self.global_selection = GlobalSelectionPage(browser, client)
+        self.global_selection = GlobalSelectionPage(browser)
 
     def visit_issue(self, org, groupid):
-        self.dismiss_assistant()
         self.browser.get(u"/organizations/{}/issues/{}/".format(org, groupid))
         self.wait_until_loaded()
 
     def visit_issue_in_environment(self, org, groupid, environment):
-        self.dismiss_assistant()
         self.browser.get(
             u"/organizations/{}/issues/{}/?environment={}".format(org, groupid, environment)
         )
         self.browser.wait_until(".group-detail")
 
     def visit_tag_values(self, org, groupid, tag):
-        self.dismiss_assistant()
         self.browser.get(u"/organizations/{}/issues/{}/tags/{}".format(org, groupid, tag))
         self.browser.wait_until_not(".loading-indicator")
 
@@ -88,3 +85,5 @@ class IssueDetailsPage(BasePage):
         self.browser.wait_until_test_id("event-entries")
         self.browser.wait_until_test_id("linked-issues")
         self.browser.wait_until_test_id("loaded-device-name")
+        if self.browser.element_exists("#grouping-info"):
+            self.browser.wait_until_test_id("loaded-grouping-info")

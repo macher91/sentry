@@ -180,6 +180,7 @@ export default class SentryApplicationDetails extends AsyncView<Props, State> {
       if (firstErrorFieldId) {
         scrollToElement(`#${firstErrorFieldId}`, {
           align: 'middle',
+          offset: 0,
         });
       }
     }
@@ -413,7 +414,7 @@ const TokenItem = styled('div')`
 `;
 
 const CreatedTitle = styled('span')`
-  color: ${p => p.theme.gray2};
+  color: ${p => p.theme.gray500};
   margin-bottom: 2px;
 `;
 

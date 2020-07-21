@@ -1,6 +1,7 @@
 import React from 'react';
 
 import {mountWithTheme} from 'sentry-test/enzyme';
+
 import ReleaseDetails from 'app/views/releases/detail/';
 import ProjectsStore from 'app/stores/projectsStore';
 
@@ -35,7 +36,7 @@ describe('ReleaseDetails', function() {
   });
 
   it('shows release details', async function() {
-    const organization = TestStubs.Organization();
+    const organization = TestStubs.Organization({slug: 'acme'});
     const params = {
       orgId: 'acme',
       projectId: 'anvils',
@@ -50,7 +51,7 @@ describe('ReleaseDetails', function() {
     };
 
     const wrapper = mountWithTheme(
-      <ReleaseDetails location={location} params={params}>
+      <ReleaseDetails location={location} params={params} organization={organization}>
         <div>hi</div>
       </ReleaseDetails>,
       TestStubs.routerContext()

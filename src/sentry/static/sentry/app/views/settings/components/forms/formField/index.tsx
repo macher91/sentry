@@ -66,7 +66,7 @@ class MockModel {
  * form model, that will be called to determine the value of the prop upon an
  * observed change in the model.
  */
-const propsToObserver = ['inline', 'highlighted', 'visible', 'disabled'] as const;
+const propsToObserver = ['help', 'inline', 'highlighted', 'visible', 'disabled'] as const;
 
 //functions that get evaluated in observedProps
 type ObserverReducerFn<T> = (props: Props & {model: FormModel}) => T;
@@ -89,6 +89,7 @@ type Props = {
   visible?: boolean | ((props: Props) => boolean);
   formatMessageValue?: boolean | Function; //used in prettyFormString
   defaultValue?: any; //TODO(TS): Do we need this?
+  resetOnError?: boolean;
 } & Omit<FieldControl['props'], typeof propsToObserver[number]> &
   Omit<Field['props'], 'inline'>;
 
@@ -279,6 +280,7 @@ class FormField extends React.Component<Props> {
       saveMessage,
       saveMessageAlertType,
       selectionInfoFunction,
+      hideControlState,
 
       // Don't pass `defaultValue` down to input fields, will be handled in form model
       defaultValue: _defaultValue,
@@ -306,6 +308,7 @@ class FormField extends React.Component<Props> {
               inline={inline}
               alignRight={alignRight}
               flexibleControlStateSize={flexibleControlStateSize}
+              hideControlState={hideControlState}
               controlState={<FormFieldControlState model={model} name={name} />}
               errorState={
                 <Observer>
@@ -331,6 +334,7 @@ class FormField extends React.Component<Props> {
                       {this.props.children({
                         ref: this.handleInputMount,
                         ...props,
+                        model,
                         name,
                         id,
                         onKeyDown: this.handleKeyDown,

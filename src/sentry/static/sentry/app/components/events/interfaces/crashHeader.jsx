@@ -117,10 +117,10 @@ class CrashHeader extends React.Component {
 
     return (
       <Wrapper className="crash-title">
-        <TitleInfo>
+        <TitleWrapper>
           {beforeTitle}
           {titleNode}
-        </TitleInfo>
+        </TitleWrapper>
         <ButtonGroupWrapper>
           <ButtonGroup merged>
             {this.hasSystemFrames() && (
@@ -185,30 +185,18 @@ export default CrashHeader;
 const Wrapper = styled('div')`
   display: flex;
   justify-content: space-between;
-  flex-direction: column;
   flex-wrap: wrap;
-  width: 100%;
-  @media (min-width: ${props => props.theme.breakpoints[2]}) {
-    align-items: center;
-    flex-direction: row;
-  }
 `;
 
-const TitleInfo = styled('div')`
+const TitleWrapper = styled('span')`
   display: flex;
-  flex: 1;
-  max-width: 100%;
-  flex-direction: column;
-  @media (min-width: ${props => props.theme.breakpoints[2]}) {
-    flex-direction: row;
-    flex-shrink: 2;
-    align-items: center;
-  }
+  flex-wrap: wrap;
+  align-items: center;
+  flex-grow: 1;
+  justify-content: flex-start;
 `;
 
 const ButtonGroup = styled(ButtonBar)`
-  padding-top: ${space(1.5)};
-  padding-bottom: ${space(1.5)};
   padding-right: ${space(1)};
 `;
 

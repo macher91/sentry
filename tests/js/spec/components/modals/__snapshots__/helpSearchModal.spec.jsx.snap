@@ -2,10 +2,10 @@
 
 exports[`Docs Search Modal can open help search modal and complete a search 1`] = `
 <DropdownBox
-  className="css-1beok6g"
+  className="css-145mifn"
 >
   <div
-    className="css-1vimpmq-DropdownBox ed7560h0"
+    className="css-8ixpa2-DropdownBox ed7560h0"
   >
     <SearchResultWrapper
       highlighted={true}
@@ -13,12 +13,12 @@ exports[`Docs Search Modal can open help search modal and complete a search 1`] 
       onClick={[Function]}
     >
       <Component
-        className="css-w0he8y-SearchResultWrapper-SearchResultWrapper e12rx3zt0"
+        className="css-7o81aa-SearchResultWrapper-SearchResultWrapper e12rx3zt0"
         highlighted={true}
         onClick={[Function]}
       >
         <div
-          className="css-w0he8y-SearchResultWrapper-SearchResultWrapper e12rx3zt0"
+          className="css-7o81aa-SearchResultWrapper-SearchResultWrapper e12rx3zt0"
           onClick={[Function]}
         >
           <withRouter(SearchResult)
@@ -144,13 +144,13 @@ exports[`Docs Search Modal can open help search modal and complete a search 1`] 
                     >
                       <DocsBadge>
                         <Component
-                          className="css-ygowzu-DocsBadge ekxyuw11"
+                          className="css-zqi2o4-DocsBadge ekxyuw11"
                         >
                           <ResultIcon
-                            className="css-ygowzu-DocsBadge ekxyuw11"
+                            className="css-zqi2o4-DocsBadge ekxyuw11"
                           >
                             <div
-                              className="ekxyuw11 css-1djfny4-ResultIcon-DocsBadge ekxyuw10"
+                              className="ekxyuw11 css-clpxgs-ResultIcon-DocsBadge ekxyuw10"
                             >
                               docs
                             </div>
@@ -172,12 +172,12 @@ exports[`Docs Search Modal can open help search modal and complete a search 1`] 
       onClick={[Function]}
     >
       <Component
-        className="css-1ivb4sb-SearchResultWrapper e12rx3zt0"
+        className="css-59mdpp-SearchResultWrapper e12rx3zt0"
         highlighted={false}
         onClick={[Function]}
       >
         <div
-          className="css-1ivb4sb-SearchResultWrapper e12rx3zt0"
+          className="css-59mdpp-SearchResultWrapper e12rx3zt0"
           onClick={[Function]}
         >
           <withRouter(SearchResult)
@@ -303,13 +303,13 @@ exports[`Docs Search Modal can open help search modal and complete a search 1`] 
                     >
                       <FaqsBadge>
                         <Component
-                          className="css-1orbeog-FaqsBadge ekxyuw12"
+                          className="css-1tt1mhp-FaqsBadge ekxyuw12"
                         >
                           <ResultIcon
-                            className="css-1orbeog-FaqsBadge ekxyuw12"
+                            className="css-1tt1mhp-FaqsBadge ekxyuw12"
                           >
                             <div
-                              className="ekxyuw12 css-mwc7vi-ResultIcon-FaqsBadge ekxyuw10"
+                              className="ekxyuw12 css-925f05-ResultIcon-FaqsBadge ekxyuw10"
                             >
                               faqs
                             </div>

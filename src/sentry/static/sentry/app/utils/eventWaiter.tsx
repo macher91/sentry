@@ -1,5 +1,5 @@
-import * as Sentry from '@sentry/browser';
 import React from 'react';
+import * as Sentry from '@sentry/react';
 
 import {analytics} from 'app/utils/analytics';
 import {Client} from 'app/api';
@@ -76,7 +76,7 @@ class EventWaiter extends React.Component<Props, State> {
 
       // This means org or project does not exist, we need to stop polling
       // Also stop polling on auth-related errors (403/401)
-      if ([404, 403, 401].includes(resp.status)) {
+      if ([404, 403, 401, 0].includes(resp.status)) {
         // TODO: Add some UX around this... redirect? error message?
         this.stopPolling();
         return;

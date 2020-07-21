@@ -1,23 +1,24 @@
+import keyBy from 'lodash/keyBy';
 import React from 'react';
 import styled from '@emotion/styled';
-import keyBy from 'lodash/keyBy';
 
-import {IconWarning} from 'app/icons';
+import {addErrorMessage} from 'app/actionCreators/indicator';
+import {RequestOptions} from 'app/api';
 import Feature from 'app/components/acl/feature';
 import Alert from 'app/components/alert';
-import {Integration, IntegrationProvider} from 'app/types';
-import {RequestOptions} from 'app/api';
-import {addErrorMessage} from 'app/actionCreators/indicator';
+import Button from 'app/components/button';
+import {IconOpen, IconWarning} from 'app/icons';
 import {t} from 'app/locale';
 import space from 'app/styles/space';
-import AddIntegrationButton from 'app/views/organizationIntegrations/addIntegrationButton';
-import Button from 'app/components/button';
-import InstalledIntegration from 'app/views/organizationIntegrations/installedIntegration';
-import withOrganization from 'app/utils/withOrganization';
+import {Integration, IntegrationProvider} from 'app/types';
+import {ProjectMapperType} from 'app/views/settings/components/forms/type';
 import {sortArray} from 'app/utils';
 import {isSlackWorkspaceApp, getReauthAlertText} from 'app/utils/integrationUtil';
+import withOrganization from 'app/utils/withOrganization';
 
 import AbstractIntegrationDetailedView from './abstractIntegrationDetailedView';
+import AddIntegrationButton from './addIntegrationButton';
+import InstalledIntegration from './installedIntegration';
 
 type State = {
   configurations: Integration[];
@@ -68,7 +69,7 @@ class IntegrationDetailedView extends AbstractIntegrationDetailedView<
     if (!provider.canAdd && metadata.aspects.externalInstall) {
       alerts.push({
         type: 'warning',
-        icon: 'icon-exit',
+        icon: <IconOpen />,
         text: metadata.aspects.externalInstall.noticeText,
       });
     }
@@ -136,8 +137,24 @@ class IntegrationDetailedView extends AbstractIntegrationDetailedView<
 
   onDisable = (integration: Integration) => {
     let url: string;
-    const [domainName, orgName] = integration.domainName.split('/');
 
+    if (integration.provider.key === 'vercel') {
+      // kind of a hack since this isn't what the url was stored for
+      // but it's exactly what we need and contains the configuration id
+      // e.g. https://vercel.com/dashboard/<team>/integrations/icfg_ySlF4UDnHcIPrAAXjGEiwtxo
+      const field = integration.configOrganization.find(
+        config => config.type === 'project_mapper'
+      );
+
+      if (field) {
+        const mappingField = field as ProjectMapperType;
+        url = mappingField.nextButton.url || '';
+        window.open(url, '_blank');
+      }
+      return;
+    }
+
+    const [domainName, orgName] = integration.domainName.split('/');
     if (integration.accountType === 'User') {
       url = `https://${domainName}/settings/installations/`;
     } else {
@@ -167,9 +184,13 @@ class IntegrationDetailedView extends AbstractIntegrationDetailedView<
       size,
       priority,
       'data-test-id': 'install-button',
-      disabled: disabledFromFeatures || !userHasAccess,
+      disabled: disabledFromFeatures,
       organization,
     };
+
+    if (!userHasAccess) {
+      return this.renderRequestIntegrationButton();
+    }
 
     if (provider.canAdd) {
       return (
@@ -187,7 +208,7 @@ class IntegrationDetailedView extends AbstractIntegrationDetailedView<
     if (metadata.aspects.externalInstall) {
       return (
         <Button
-          icon="icon-exit"
+          icon={<IconOpen />}
           href={metadata.aspects.externalInstall.url}
           onClick={this.handleExternalInstall}
           external
@@ -197,8 +218,9 @@ class IntegrationDetailedView extends AbstractIntegrationDetailedView<
         </Button>
       );
     }
-    // should never happen but we can't return undefined without some refactoring
-    return <span />;
+
+    // This should never happen but we can't return undefined without some refactoring.
+    return <React.Fragment />;
   }
 
   renderConfigurations() {
@@ -226,7 +248,7 @@ class IntegrationDetailedView extends AbstractIntegrationDetailedView<
                     integration={integration}
                     onRemove={this.onRemove}
                     onDisable={this.onDisable}
-                    onReinstallIntegration={this.onInstall}
+                    onReAuthIntegration={this.onInstall}
                     data-test-id={integration.id}
                     trackIntegrationEvent={this.trackIntegrationEvent}
                     showReauthMessage={hasFeature && isSlackWorkspaceApp(integration)}

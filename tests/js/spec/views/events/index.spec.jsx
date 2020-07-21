@@ -3,6 +3,7 @@ import React from 'react';
 import {initializeOrg} from 'sentry-test/initializeOrg';
 import {mockRouterPush} from 'sentry-test/mockRouterPush';
 import {mountWithTheme} from 'sentry-test/enzyme';
+
 import {setActiveOrganization} from 'app/actionCreators/organizations';
 import GlobalSelectionStore from 'app/stores/globalSelectionStore';
 import EventsContainer from 'app/views/events';
@@ -174,9 +175,10 @@ describe('EventsContainer', function() {
       await tick();
       wrapper.update();
 
-      expect(router.push).toHaveBeenCalledWith({
+      expect(router.push).toHaveBeenLastCalledWith({
         pathname: '/organizations/org-slug/events/',
         query: {
+          environment: [],
           project: [2],
         },
       });
@@ -204,9 +206,10 @@ describe('EventsContainer', function() {
 
       wrapper.find('MultipleProjectSelector StyledChevron').simulate('click');
 
-      expect(router.push).toHaveBeenCalledWith({
+      expect(router.push).toHaveBeenLastCalledWith({
         pathname: '/organizations/org-slug/events/',
         query: {
+          environment: [],
           project: [2, 3],
         },
       });

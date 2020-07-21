@@ -1,9 +1,9 @@
 import * as ReactRouter from 'react-router';
-import * as Sentry from '@sentry/browser';
 import isInteger from 'lodash/isInteger';
 import omit from 'lodash/omit';
 import pick from 'lodash/pick';
-import qs from 'query-string';
+import * as qs from 'query-string';
+import * as Sentry from '@sentry/react';
 
 import {
   DATE_TIME,
@@ -95,6 +95,7 @@ type InitializeUrlStateParams = {
   skipLoadLastUsed?: boolean;
   defaultSelection?: Partial<GlobalSelection>;
   forceProject?: MinimalProject | null;
+  showAbsolute?: boolean;
 };
 
 export function initializeUrlState({
@@ -107,26 +108,38 @@ export function initializeUrlState({
   shouldEnforceSingleProject,
   defaultSelection,
   forceProject,
+  showAbsolute = true,
 }: InitializeUrlStateParams) {
   const orgSlug = organization.slug;
   const query = pick(queryParams, [URL_PARAM.PROJECT, URL_PARAM.ENVIRONMENT]);
   const hasProjectOrEnvironmentInUrl = Object.keys(query).length > 0;
-  const parsed = getStateFromQuery(queryParams);
+  const parsed = getStateFromQuery(queryParams, {
+    allowAbsoluteDatetime: showAbsolute,
+    allowEmptyPeriod: true,
+  });
+  const {datetime: defaultDateTime, ...retrievedDefaultSelection} = getDefaultSelection();
+  const {datetime: customizedDefaultDateTime, ...customizedDefaultSelection} =
+    defaultSelection || {};
 
   let globalSelection: Omit<GlobalSelection, 'datetime'> & {
     datetime: {
       [K in keyof GlobalSelection['datetime']]: GlobalSelection['datetime'][K] | null;
     };
   } = {
-    ...getDefaultSelection(),
+    ...retrievedDefaultSelection,
+    ...customizedDefaultSelection,
     datetime: {
-      [DATE_TIME.START as 'start']: parsed.start || null,
-      [DATE_TIME.END as 'end']: parsed.end || null,
-      [DATE_TIME.PERIOD as 'period']: parsed.period || null,
-      [DATE_TIME.UTC as 'utc']: parsed.utc || null,
+      [DATE_TIME.START as 'start']:
+        parsed.start || customizedDefaultDateTime?.start || null,
+      [DATE_TIME.END as 'end']: parsed.end || customizedDefaultDateTime?.end || null,
+      [DATE_TIME.PERIOD as 'period']:
+        parsed.period || customizedDefaultDateTime?.period || defaultDateTime.period,
+      [DATE_TIME.UTC as 'utc']: parsed.utc || customizedDefaultDateTime?.utc || null,
     },
-    ...defaultSelection,
   };
+  if (globalSelection.datetime.start && globalSelection.datetime.end) {
+    globalSelection.datetime.period = null;
+  }
 
   // We only save environment and project, so if those exist in
   // URL, do not touch local storage
@@ -193,6 +206,7 @@ export function initializeUrlState({
   // To keep URLs clean, don't push default period if url params are empty
   const parsedWithNoDefaultPeriod = getStateFromQuery(queryParams, {
     allowEmptyPeriod: true,
+    allowAbsoluteDatetime: showAbsolute,
   });
 
   const newDatetime = {
@@ -212,11 +226,15 @@ export function initializeUrlState({
 
 /**
  * Updates store and global project selection URL param if `router` is supplied
+ *
+ * This accepts `environments` from `options` to also update environments simultaneously
+ * as environments are tied to a project, so if you change projects, you may need
+ * to clear environments.
  */
 export function updateProjects(
   projects: ProjectId[],
   router?: Router,
-  options?: Options
+  options?: Options & {environments?: EnvironmentId[]}
 ) {
   if (!isProjectsValid(projects)) {
     Sentry.withScope(scope => {
@@ -226,8 +244,8 @@ export function updateProjects(
     return;
   }
 
-  GlobalSelectionActions.updateProjects(projects);
-  updateParams({project: projects}, router, options);
+  GlobalSelectionActions.updateProjects(projects, options?.environments);
+  updateParams({project: projects, environment: options?.environments}, router, options);
 }
 
 function isProjectsValid(projects: ProjectId[]) {

@@ -2,7 +2,8 @@ import React from 'react';
 
 import {initializeOrg} from 'sentry-test/initializeOrg';
 import {mountWithTheme} from 'sentry-test/enzyme';
-import OrganizationSecurityAndPrivacy from 'app/views/settings/organizationSecurityAndPrivacy/organizationSecurityAndPrivacy';
+
+import OrganizationSecurityAndPrivacy from 'app/views/settings/organizationSecurityAndPrivacy';
 
 describe('OrganizationSecurityAndPrivacy', function() {
   let organization;
@@ -19,8 +20,6 @@ describe('OrganizationSecurityAndPrivacy', function() {
       url: `/organizations/${organization.slug}/`,
       method: 'GET',
     });
-
-    organization.features = ['datascrubbers-v2'];
   });
 
   it('shows require2fa switch', async function() {

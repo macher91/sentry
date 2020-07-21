@@ -68,6 +68,7 @@ class OrganizationGlobalHeaderTest(AcceptanceTestCase, SnubaTestCase):
         )
 
     def test_global_selection_header_dropdown(self):
+        self.dismiss_assistant()
         self.project.update(first_event=timezone.now())
         self.issues_list.visit_issue_list(
             self.org.slug, query="?query=assigned%3Ame&project=" + six.text_type(self.project_1.id)
@@ -122,6 +123,104 @@ class OrganizationGlobalHeaderTest(AcceptanceTestCase, SnubaTestCase):
         self.issues_list.visit_issue_list(self.org.slug)
         self.issues_list.wait_until_loaded()
         assert u"project={}".format(self.project_3.id) in self.browser.current_url
+
+    def test_global_selection_header_navigates_with_browser_back_button(self):
+        """
+        Global Selection Header should:
+        1) load project from URL if it exists
+        2) enforce a single project if loading issues list with no project in URL
+           a) last selected project via local storage if it exists
+           b) otherwise need to just select first project
+        """
+        self.create_issues()
+        # Issues list with project 1 selected
+        self.issues_list.visit_issue_list(
+            self.org.slug, query="?project=" + six.text_type(self.project_1.id)
+        )
+        self.issues_list.visit_issue_list(self.org.slug)
+        assert self.issues_list.global_selection.get_selected_project_slug() == self.project_1.slug
+
+        # selects a different project
+        self.issues_list.global_selection.select_project_by_slug(self.project_3.slug)
+        self.issues_list.wait_until_loaded()
+        assert u"project={}".format(self.project_3.id) in self.browser.current_url
+        assert self.issues_list.global_selection.get_selected_project_slug() == self.project_3.slug
+
+        # simulate pressing the browser back button
+        self.browser.back()
+        self.issues_list.wait_until_loaded()
+        assert u"project={}".format(self.project_1.id) in self.browser.current_url
+        assert self.issues_list.global_selection.get_selected_project_slug() == self.project_1.slug
+
+    def test_global_selection_header_updates_environment_with_browser_navigation_buttons(self):
+        """
+        Global Selection Header should:
+        1) load project from URL if it exists
+        2) clear the current environment if the user clicks clear
+        3) reload the environment from URL if it exists on browser navigation
+        """
+        with self.feature("organizations:global-views"):
+            self.create_issues()
+
+            """
+            set up workflow:
+            1) environment=All environments
+            2) environment=prod
+            3) environment=All environments
+            """
+            self.issues_list.visit_issue_list(self.org.slug)
+            self.issues_list.wait_until_loaded()
+            assert u"environment=" not in self.browser.current_url
+            assert (
+                self.issue_details.global_selection.get_selected_environment() == "All Environments"
+            )
+
+            self.browser.click('[data-test-id="global-header-environment-selector"]')
+            self.browser.click('[data-test-id="environment-prod"]')
+            self.issues_list.wait_until_loaded()
+            assert u"environment=prod" in self.browser.current_url
+            assert self.issue_details.global_selection.get_selected_environment() == "prod"
+
+            self.browser.click('[data-test-id="global-header-environment-selector"] > svg')
+            self.issues_list.wait_until_loaded()
+            assert u"environment=" not in self.browser.current_url
+            assert (
+                self.issue_details.global_selection.get_selected_environment() == "All Environments"
+            )
+
+            """
+            navigate back through history to the beginning
+            1) environment=All Environments -> environment=prod
+            2) environment=prod -> environment=All Environments
+            """
+            self.browser.back()
+            self.issues_list.wait_until_loaded()
+            assert u"environment=prod" in self.browser.current_url
+            assert self.issue_details.global_selection.get_selected_environment() == "prod"
+
+            self.browser.back()
+            self.issues_list.wait_until_loaded()
+            assert u"environment=" not in self.browser.current_url
+            assert (
+                self.issue_details.global_selection.get_selected_environment() == "All Environments"
+            )
+
+            """
+            navigate foward through history to the end
+            1) environment=All Environments -> environment=prod
+            2) environment=prod -> environment=All Environments
+            """
+            self.browser.forward()
+            self.issues_list.wait_until_loaded()
+            assert u"environment=prod" in self.browser.current_url
+            assert self.issue_details.global_selection.get_selected_environment() == "prod"
+
+            self.browser.forward()
+            self.issues_list.wait_until_loaded()
+            assert u"environment=" not in self.browser.current_url
+            assert (
+                self.issue_details.global_selection.get_selected_environment() == "All Environments"
+            )
 
     def test_global_selection_header_loads_with_correct_project_with_multi_project(self):
         """

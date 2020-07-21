@@ -8,7 +8,6 @@ import logging
 import os.path
 import six
 from datetime import timedelta
-from enum import IntEnum, unique
 
 from collections import OrderedDict, namedtuple
 from django.conf import settings
@@ -499,25 +498,22 @@ ALL_ACCESS_PROJECTS = {-1}
 # Most number of events for the top-n graph
 MAX_TOP_EVENTS = 5
 
+# org option default values
+PROJECT_RATE_LIMIT_DEFAULT = 100
+ACCOUNT_RATE_LIMIT_DEFAULT = 0
+REQUIRE_SCRUB_DATA_DEFAULT = False
+REQUIRE_SCRUB_DEFAULTS_DEFAULT = False
+SENSITIVE_FIELDS_DEFAULT = None
+SAFE_FIELDS_DEFAULT = None
+ATTACHMENTS_ROLE_DEFAULT = settings.SENTRY_DEFAULT_ROLE
+EVENTS_ADMIN_ROLE_DEFAULT = settings.SENTRY_DEFAULT_ROLE
+REQUIRE_SCRUB_IP_ADDRESS_DEFAULT = False
+SCRAPE_JAVASCRIPT_DEFAULT = True
+TRUSTED_RELAYS_DEFAULT = None
+JOIN_REQUESTS_DEFAULT = True
 
-@unique
-class DataCategory(IntEnum):
-    DEFAULT = 0
-    ERROR = 1
-    TRANSACTION = 2
-    SECURITY = 3
-    ATTACHMENT = 4
-    SESSION = 5
+# `sentry:events_member_admin` - controls whether the 'member' role gets the event:admin scope
+EVENTS_MEMBER_ADMIN_DEFAULT = True
 
-    @classmethod
-    def from_event_type(cls, event_type):
-        if event_type == "error":
-            return DataCategory.ERROR
-        elif event_type == "transaction":
-            return DataCategory.TRANSACTION
-        elif event_type in ("csp", "hpkp", "expectct", "expectstaple"):
-            return DataCategory.SECURITY
-        return DataCategory.DEFAULT
-
-    def api_name(self):
-        return self.name.lower()
+# Defined at https://github.com/getsentry/relay/blob/master/relay-common/src/constants.rs
+DataCategory = sentry_relay.DataCategory

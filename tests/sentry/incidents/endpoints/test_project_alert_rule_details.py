@@ -3,9 +3,7 @@ from __future__ import absolute_import
 from exam import fixture
 
 from sentry.api.serializers import serialize
-from sentry.incidents.logic import create_alert_rule
 from sentry.incidents.models import AlertRule, AlertRuleStatus, Incident, IncidentStatus
-from sentry.snuba.models import QueryAggregations
 from sentry.testutils import APITestCase
 
 
@@ -21,7 +19,7 @@ class AlertRuleDetailsBase(object):
             "threshold_type": 0,
             "resolve_threshold": 1,
             "alert_threshold": 0,
-            "aggregation": 0,
+            "aggregate": "count_unique(user)",
             "threshold_period": 1,
             "projects": [self.project.slug],
             "triggers": [
@@ -75,15 +73,7 @@ class AlertRuleDetailsBase(object):
 
     @fixture
     def alert_rule(self):
-        return create_alert_rule(
-            self.organization,
-            [self.project],
-            "hello",
-            "level:error",
-            QueryAggregations.TOTAL,
-            10,
-            1,
-        )
+        return self.create_alert_rule(name="hello")
 
     def test_invalid_rule_id(self):
         self.create_member(
@@ -123,6 +113,17 @@ class AlertRuleDetailsGetEndpointTest(AlertRuleDetailsBase, APITestCase):
 
         assert resp.data == serialize(self.alert_rule)
 
+    def test_aggregate_translation(self):
+        self.create_member(
+            user=self.user, organization=self.organization, role="owner", teams=[self.team]
+        )
+        self.login_as(self.user)
+        alert_rule = self.create_alert_rule(aggregate="count_unique(tags[sentry:user])")
+        with self.feature("organizations:incidents"):
+            resp = self.get_valid_response(self.organization.slug, self.project.slug, alert_rule.id)
+            assert resp.data["aggregate"] == "count_unique(user)"
+            assert alert_rule.snuba_query.aggregate == "count_unique(tags[sentry:user])"
+
 
 class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
     method = "put"
@@ -133,6 +134,7 @@ class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
         )
 
         test_params = self.valid_params.copy()
+        test_params["resolve_threshold"] = self.alert_rule.resolve_threshold
         test_params.update({"name": "what"})
 
         self.login_as(self.user)
@@ -147,7 +149,8 @@ class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
 
     def test_not_updated_fields(self):
         test_params = self.valid_params.copy()
-        test_params.update({"aggregation": self.alert_rule.aggregation})
+        test_params["resolve_threshold"] = self.alert_rule.resolve_threshold
+        test_params["aggregate"] = self.alert_rule.snuba_query.aggregate
 
         self.create_member(
             user=self.user, organization=self.organization, role="owner", teams=[self.team]
@@ -159,13 +162,13 @@ class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
                 self.organization.slug, self.project.slug, self.alert_rule.id, **test_params
             )
 
-        existing_sub = self.alert_rule.query_subscriptions.first()
+        existing_sub = self.alert_rule.snuba_query.subscriptions.first()
 
         # Alert rule should be exactly the same
         assert resp.data == serialize(self.alert_rule)
-        # If the aggregation changed we'd have a new subscription, validate that
+        # If the aggregate changed we'd have a new subscription, validate that
         # it hasn't changed explicitly
-        updated_sub = AlertRule.objects.get(id=self.alert_rule.id).query_subscriptions.first()
+        updated_sub = AlertRule.objects.get(id=self.alert_rule.id).snuba_query.subscriptions.first()
         assert updated_sub.subscription_id == existing_sub.subscription_id
 
     def test_update_snapshot(self):

@@ -5,11 +5,10 @@ import isPropValid from '@emotion/is-prop-valid';
 import styled from '@emotion/styled';
 import omit from 'lodash/omit';
 
-import InlineSvg from 'app/components/inlineSvg';
+import {IconClose, IconLock, IconChevron, IconInfo, IconSettings} from 'app/icons';
 import Tooltip from 'app/components/tooltip';
 import space from 'app/styles/space';
 import overflowEllipsis from 'app/styles/overflowEllipsis';
-import {IconInfo, IconSettings} from 'app/icons';
 
 type DefaultProps = {
   allowClear: boolean;
@@ -91,7 +90,7 @@ class HeaderItem extends React.Component<Props> {
           </Hint>
         )}
         {hasSelected && !locked && allowClear && (
-          <StyledClose {...textColorProps} src="icon-close" onClick={this.handleClear} />
+          <StyledClose {...textColorProps} onClick={this.handleClear} />
         )}
         {settingsLink && (
           <SettingsIconLink to={settingsLink}>
@@ -100,12 +99,16 @@ class HeaderItem extends React.Component<Props> {
         )}
         {!locked && !loading && (
           <StyledChevron isOpen={isOpen}>
-            <InlineSvg src="icon-chevron-down" />
+            <IconChevron
+              direction="down"
+              color={isOpen ? 'gray700' : 'gray500'}
+              size="sm"
+            />
           </StyledChevron>
         )}
         {locked && (
           <Tooltip title={lockedMessage || 'This selection is locked'} position="bottom">
-            <StyledLock src="icon-lock" />
+            <StyledLock color="gray500" />
           </Tooltip>
         )}
       </StyledHeaderItem>
@@ -116,9 +119,9 @@ class HeaderItem extends React.Component<Props> {
 // Infer props here because of styled/theme
 const getColor = p => {
   if (p.locked) {
-    return p.theme.gray2;
+    return p.theme.gray500;
   }
-  return p.isOpen || p.hasSelected ? p.theme.gray4 : p.theme.gray2;
+  return p.isOpen || p.hasSelected ? p.theme.gray700 : p.theme.gray500;
 };
 
 type ColorProps = {
@@ -161,7 +164,7 @@ const Hint = styled('div')`
   margin-right: ${space(1)};
 `;
 
-const StyledClose = styled(InlineSvg, {shouldForwardProp: isPropValid})<ColorProps>`
+const StyledClose = styled(IconClose, {shouldForwardProp: isPropValid})<ColorProps>`
   color: ${getColor};
   height: ${space(1.5)};
   width: ${space(1.5)};
@@ -183,7 +186,7 @@ const StyledChevron = styled('div')<StyledChevronProps>`
 `;
 
 const SettingsIconLink = styled(Link)`
-  color: ${p => p.theme.gray2};
+  color: ${p => p.theme.gray500};
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -191,14 +194,12 @@ const SettingsIconLink = styled(Link)`
   transition: 0.5s opacity ease-out;
 
   &:hover {
-    color: ${p => p.theme.gray4};
+    color: ${p => p.theme.gray700};
   }
 `;
 
-const StyledLock = styled(InlineSvg)`
-  color: ${p => p.theme.gray2};
-  width: ${space(2)};
-  height: ${space(2)};
+const StyledLock = styled(IconLock)`
+  margin-top: ${space(0.75)};
   stroke-width: 1.5;
 `;
 

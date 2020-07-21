@@ -35,7 +35,7 @@ from sentry.models import (
     UserOption,
     UserReport,
 )
-from sentry.utils.data_filters import FilterTypes
+from sentry.ingest.inbound_filters import FilterTypes
 from sentry.utils.compat import zip
 
 STATUS_LABELS = {
@@ -158,13 +158,9 @@ class ProjectSerializer(Serializer):
             result = self.get_access_by_project(item_list, user)
 
         with measure_span("features"):
-            project_features = [
-                feature_name
-                for feature_name in features.all(feature_type=ProjectFeature).keys()
-                if feature_name.startswith(_PROJECT_SCOPE_PREFIX)
-            ]
+            features_by_project = self._get_features_for_projects(item_list, user)
             for project, serialized in result.items():
-                serialized["features"] = self._get_feature_list(project, user, project_features)
+                serialized["features"] = features_by_project[project]
 
         with measure_span("other"):
             for project, serialized in result.items():
@@ -183,17 +179,29 @@ class ProjectSerializer(Serializer):
         return result
 
     @staticmethod
-    def _get_feature_list(obj, user, project_features):
-        feature_list = set(
-            feature_name[len(_PROJECT_SCOPE_PREFIX) :]  # Remove the project scope prefix
-            for feature_name in project_features
-            if features.has(feature_name, obj, actor=user)
-        )
+    def _get_features_for_projects(all_projects, user):
+        # Arrange to call features.has_for_batch rather than features.has
+        # for performance's sake
+        projects_by_org = defaultdict(list)
+        for project in all_projects:
+            projects_by_org[project.organization].append(project)
 
-        if obj.flags.has_releases:
-            feature_list.add("releases")
+        features_by_project = defaultdict(list)
+        for feature_name in features.all(feature_type=ProjectFeature).keys():
+            if not feature_name.startswith(_PROJECT_SCOPE_PREFIX):
+                continue
+            abbreviated_feature = feature_name[len(_PROJECT_SCOPE_PREFIX) :]
+            for (organization, projects) in projects_by_org.items():
+                result = features.has_for_batch(feature_name, organization, projects, user)
+                for (project, flag) in result.items():
+                    if flag:
+                        features_by_project[project].append(abbreviated_feature)
 
-        return feature_list
+        for project in all_projects:
+            if project.flags.has_releases:
+                features_by_project[project].append("releases")
+
+        return features_by_project
 
     def serialize(self, obj, attrs, user):
         status_label = STATUS_LABELS.get(obj.status, "unknown")
@@ -215,6 +223,7 @@ class ProjectSerializer(Serializer):
             "color": obj.color,
             "dateCreated": obj.date_added,
             "firstEvent": obj.first_event,
+            "firstTransactionEvent": True if obj.flags.has_transactions else False,
             "features": attrs["features"],
             "status": status_label,
             "platform": obj.platform,
@@ -378,6 +387,7 @@ class ProjectSummarySerializer(ProjectWithTeamSerializer):
             "environments": attrs["environments"],
             "features": attrs["features"],
             "firstEvent": obj.first_event,
+            "firstTransactionEvent": True if obj.flags.has_transactions else False,
             "platform": obj.platform,
             "platforms": attrs["platforms"],
             "latestDeploys": attrs["deploys"],

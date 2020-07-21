@@ -5,6 +5,7 @@ import styled from '@emotion/styled';
 import {css} from '@emotion/core';
 import capitalize from 'lodash/capitalize';
 
+import {IconMute, IconStar} from 'app/icons';
 import SentryTypes from 'app/sentryTypes';
 import EventOrGroupTitle from 'app/components/eventOrGroupTitle';
 import Tooltip from 'app/components/tooltip';
@@ -75,8 +76,16 @@ class EventOrGroupHeader extends React.Component {
             </Tooltip>
           </GroupLevel>
         )}
-        {!hideIcons && data.status === 'ignored' && <Muted className="icon-soundoff" />}
-        {!hideIcons && data.isBookmarked && <Starred className="icon-star-solid" />}
+        {!hideIcons && data.status === 'ignored' && (
+          <IconWrapper>
+            <IconMute color="red400" />
+          </IconWrapper>
+        )}
+        {!hideIcons && data.isBookmarked && (
+          <IconWrapper>
+            <IconStar isSolid color="orange300" />
+          </IconWrapper>
+        )}
         <EventOrGroupTitle
           {...this.props}
           style={{fontWeight: data.hasSeen ? 400 : 600}}
@@ -122,7 +131,7 @@ const Title = styled('div')`
     font-size: 14px;
     font-style: normal;
     font-weight: 300;
-    color: ${p => p.theme.gray3};
+    color: ${p => p.theme.gray600};
   }
 `;
 
@@ -132,7 +141,7 @@ const LocationWrapper = styled('div')`
   direction: rtl;
   text-align: left;
   font-size: 14px;
-  color: ${p => p.theme.gray3};
+  color: ${p => p.theme.gray600};
   span {
     direction: ltr;
   }
@@ -153,19 +162,11 @@ const Message = styled('div')`
   font-size: 14px;
 `;
 
-const iconStyles = css`
-  font-size: 14px;
+const IconWrapper = styled('span')`
+  position: relative;
+  top: 2px;
+
   margin-right: 5px;
-`;
-
-const Muted = styled('span')`
-  ${iconStyles};
-  color: ${p => p.theme.red};
-`;
-
-const Starred = styled('span')`
-  ${iconStyles};
-  color: ${p => p.theme.yellowOrange};
 `;
 
 const GroupLevel = styled('div')`
@@ -178,17 +179,17 @@ const GroupLevel = styled('div')`
   background-color: ${p => {
     switch (p.level) {
       case 'sample':
-        return p.theme.purple;
+        return p.theme.purple400;
       case 'info':
-        return p.theme.blue;
+        return p.theme.blue400;
       case 'warning':
-        return p.theme.yellowOrange;
+        return p.theme.yellow400;
       case 'error':
-        return p.theme.orange;
+        return p.theme.orange400;
       case 'fatal':
-        return p.theme.red;
+        return p.theme.red400;
       default:
-        return p.theme.gray2;
+        return p.theme.gray500;
     }
   }};
 

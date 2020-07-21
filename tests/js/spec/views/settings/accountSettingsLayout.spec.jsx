@@ -1,6 +1,7 @@
 import React from 'react';
 
 import {mountWithTheme} from 'sentry-test/enzyme';
+
 import * as OrgActions from 'app/actionCreators/organizations';
 import AccountSettingsLayout from 'app/views/settings/account/accountSettingsLayout';
 
@@ -21,7 +22,7 @@ describe('AccountSettingsLayout', function() {
       url: `/organizations/${organization.slug}/`,
     });
     wrapper = mountWithTheme(
-      <AccountSettingsLayout params={{}} />,
+      <AccountSettingsLayout router={TestStubs.router()} params={{}} />,
       TestStubs.routerContext()
     );
   });

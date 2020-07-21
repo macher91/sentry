@@ -1,6 +1,5 @@
 import $ from 'jquery';
 import {RouteComponentProps} from 'react-router/lib/Router';
-import {ThemeProvider} from 'emotion-theming';
 import {browserHistory} from 'react-router';
 import Cookies from 'js-cookie';
 import PropTypes from 'prop-types';
@@ -11,7 +10,10 @@ import keydown from 'react-keydown';
 import {Client} from 'app/api';
 import {Config} from 'app/types';
 import {DEPLOY_PREVIEW_CONFIG, EXPERIMENTAL_SPA} from 'app/constants';
-import {displayDeployPreviewAlert} from 'app/actionCreators/deployPreview';
+import {
+  displayDeployPreviewAlert,
+  displayExperimentalSpaAlert,
+} from 'app/actionCreators/deployPreview';
 import {fetchGuides} from 'app/actionCreators/guides';
 import {openCommandPalette} from 'app/actionCreators/modal';
 import {setTransactionName} from 'app/utils/apm';
@@ -20,14 +22,12 @@ import AlertActions from 'app/actions/alertActions';
 import ConfigStore from 'app/stores/configStore';
 import ErrorBoundary from 'app/components/errorBoundary';
 import GlobalModal from 'app/components/globalModal';
-import GlobalStyles from 'app/styles/global';
 import HookStore from 'app/stores/hookStore';
 import Indicators from 'app/components/indicators';
 import LoadingIndicator from 'app/components/loadingIndicator';
 import NewsletterConsent from 'app/views/newsletterConsent';
 import OrganizationsStore from 'app/stores/organizationsStore';
 import getRouteStringFromRoutes from 'app/utils/getRouteStringFromRoutes';
-import theme from 'app/utils/theme';
 import withApi from 'app/utils/withApi';
 import withConfig from 'app/utils/withConfig';
 
@@ -82,6 +82,8 @@ class App extends React.Component<Props, State> {
   }
 
   componentDidMount() {
+    this.updateTracing();
+
     this.props.api.request('/organizations/', {
       query: {
         member: '1',
@@ -126,6 +128,8 @@ class App extends React.Component<Props, State> {
 
     if (DEPLOY_PREVIEW_CONFIG) {
       displayDeployPreviewAlert();
+    } else if (EXPERIMENTAL_SPA) {
+      displayExperimentalSpaAlert();
     }
 
     $(document).ajaxError(function(_evt, jqXHR) {
@@ -230,7 +234,7 @@ class App extends React.Component<Props, State> {
 
     if (needsUpgrade) {
       const InstallWizard = React.lazy(() =>
-        import(/* webpackChunkName: "InstallWizard" */ 'app/views/installWizard')
+        import(/* webpackChunkName: "InstallWizard" */ 'app/views/admin/installWizard')
       );
 
       return (
@@ -257,15 +261,12 @@ class App extends React.Component<Props, State> {
     }
 
     return (
-      <ThemeProvider theme={theme}>
-        <GlobalStyles theme={theme} />
-        <div className="main-container" tabIndex={-1} ref={this.mainContainerRef}>
-          <GlobalModal onClose={this.handleGlobalModalClose} />
-          <SystemAlerts className="messages-container" />
-          <Indicators className="indicators-container" />
-          <ErrorBoundary>{this.renderBody()}</ErrorBoundary>
-        </div>
-      </ThemeProvider>
+      <div className="main-container" tabIndex={-1} ref={this.mainContainerRef}>
+        <GlobalModal onClose={this.handleGlobalModalClose} />
+        <SystemAlerts className="messages-container" />
+        <Indicators className="indicators-container" />
+        <ErrorBoundary>{this.renderBody()}</ErrorBoundary>
+      </div>
     );
   }
 }

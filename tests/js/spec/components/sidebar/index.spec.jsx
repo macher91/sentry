@@ -1,6 +1,7 @@
 import React from 'react';
 
 import {mountWithTheme, shallow} from 'sentry-test/enzyme';
+
 import ConfigStore from 'app/stores/configStore';
 import SidebarContainer, {Sidebar} from 'app/components/sidebar';
 import * as incidentActions from 'app/actionCreators/serviceIncidents';
@@ -102,7 +103,7 @@ describe('Sidebar', function() {
     wrapper.find('OnboardingStatus ProgressRing').simulate('click');
     wrapper.update();
 
-    expect(wrapper.find('OnboardingStatus SidebarPanel')).toMatchSnapshot();
+    expect(wrapper.find('OnboardingStatus TaskSidebarPanel').exists()).toBe(true);
   });
 
   it('handles discover-basic feature', function() {

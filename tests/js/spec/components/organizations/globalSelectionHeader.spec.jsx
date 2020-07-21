@@ -3,6 +3,7 @@ import React from 'react';
 import {initializeOrg} from 'sentry-test/initializeOrg';
 import {mockRouterPush} from 'sentry-test/mockRouterPush';
 import {mountWithTheme} from 'sentry-test/enzyme';
+
 import ConfigStore from 'app/stores/configStore';
 import GlobalSelectionHeader from 'app/components/organizations/globalSelectionHeader';
 import GlobalSelectionStore from 'app/stores/globalSelectionStore';
@@ -295,6 +296,32 @@ describe('GlobalSelectionHeader', function() {
       <GlobalSelectionHeader organization={organization} />,
       changeQuery(routerContext, {
         statsPeriod: null,
+      })
+    );
+
+    await tick();
+
+    expect(GlobalSelectionStore.get()).toEqual({
+      isReady: true,
+      selection: {
+        datetime: {
+          period: '14d',
+          utc: null,
+          start: null,
+          end: null,
+        },
+        environments: [],
+        projects: [],
+      },
+    });
+  });
+
+  it('resets start&end if showAbsolute prop is false', async function() {
+    mountWithTheme(
+      <GlobalSelectionHeader organization={organization} showAbsolute={false} />,
+      changeQuery(routerContext, {
+        start: '2020-05-05T07:26:53.000',
+        end: '2020-05-05T09:19:12.000',
       })
     );
 
@@ -1098,6 +1125,99 @@ describe('GlobalSelectionHeader', function() {
           .first()
           .text()
       ).toEqual('View My Projects');
+    });
+  });
+
+  describe('project icons', function() {
+    const initialData = initializeOrg({
+      organization: {features: ['global-views']},
+      projects: [
+        {id: 0, slug: 'go', platform: 'go'},
+        {id: 1, slug: 'javascript', platform: 'javascript'},
+        {id: 2, slug: 'other', platform: 'other'},
+        {id: 3, slug: 'php', platform: 'php'},
+        {id: 4, slug: 'python', platform: 'python'},
+        {id: 5, slug: 'rust', platform: 'rust'},
+        {id: 6, slug: 'swift', platform: 'swift'},
+      ],
+    });
+
+    beforeEach(function() {
+      jest.spyOn(ProjectsStore, 'getState').mockImplementation(() => ({
+        projects: initialData.organization.projects,
+        loading: false,
+      }));
+    });
+
+    it('shows IconProject when no projects are selected', async function() {
+      const wrapper = mountWithTheme(
+        <GlobalSelectionHeader
+          organization={initialData.organization}
+          projects={initialData.organization.projects}
+        />,
+        changeQuery(initialData.routerContext, {project: -1})
+      );
+
+      await tick();
+      wrapper.update();
+
+      const projectSelector = wrapper.find('MultipleProjectSelector');
+
+      expect(projectSelector.find('IconContainer svg').exists()).toBeTruthy();
+      expect(projectSelector.find('PlatformIcon').exists()).toBeFalsy();
+
+      expect(projectSelector.find('Content').text()).toEqual('All Projects');
+    });
+
+    it('shows PlatformIcon when one project is selected', async function() {
+      const wrapper = mountWithTheme(
+        <GlobalSelectionHeader
+          organization={initialData.organization}
+          projects={initialData.organization.projects}
+        />,
+        changeQuery(initialData.routerContext, {project: 1})
+      );
+
+      await tick();
+      wrapper.update();
+
+      const projectSelector = wrapper.find('MultipleProjectSelector');
+
+      expect(projectSelector.find('PlatformIcon').props().platform).toEqual('javascript');
+
+      expect(projectSelector.find('Content').text()).toEqual('javascript');
+    });
+
+    it('shows multiple PlatformIcons when multiple projects are selected, no more than 5', async function() {
+      const wrapper = mountWithTheme(
+        <GlobalSelectionHeader
+          organization={initialData.organization}
+          projects={initialData.organization.projects}
+        />,
+        initialData.routerContext
+      );
+
+      await tick();
+      wrapper.update();
+
+      // select 6 projects
+      const headerItem = wrapper.find('MultipleProjectSelector HeaderItem');
+      headerItem.simulate('click');
+      wrapper
+        .find('MultipleProjectSelector CheckboxFancy')
+        .forEach(project => project.simulate('click'));
+      headerItem.simulate('click');
+
+      await tick();
+      wrapper.update();
+
+      // assert title and icons
+      const title = wrapper.find('MultipleProjectSelector Content');
+      const icons = wrapper.find('MultipleProjectSelector PlatformIcon');
+      expect(title.text()).toBe('javascript, other, php, python, rust, swift');
+      expect(icons.length).toBe(5);
+      expect(icons.at(3).props().platform).toBe('rust');
+      expect(icons.at(4).props().platform).toBe('swift');
     });
   });
 });

@@ -1,6 +1,7 @@
 import React from 'react';
 
 import {mount} from 'sentry-test/enzyme';
+
 import withExperiment from 'app/utils/withExperiment';
 import ConfigStore from 'app/stores/configStore';
 import {logExperiment} from 'app/utils/analytics';
@@ -61,7 +62,7 @@ describe('withConfig HoC', function() {
     expect(logExperiment).toHaveBeenCalledWith({key: 'orgExperiment', organization});
   });
 
-  it('deffers logging when injectLogExperiment is true', function() {
+  it('defers logging when injectLogExperiment is true', function() {
     const Container = withExperiment(MyComponent, {
       experiment: 'orgExperiment',
       injectLogExperiment: true,

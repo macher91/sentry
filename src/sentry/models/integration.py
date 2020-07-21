@@ -129,6 +129,7 @@ class Integration(DefaultFieldsModel):
                 integration_id=self.id,
                 defaults={"default_auth_id": default_auth_id, "config": {}},
             )
+            # TODO(Steve): add audit log if created
             if not created and default_auth_id:
                 org_integration.update(default_auth_id=default_auth_id)
         except IntegrityError:
@@ -147,3 +148,16 @@ class Integration(DefaultFieldsModel):
             )
 
             return org_integration
+
+    def reauthorize(self, data):
+        """
+        The structure of `data` depends on the `build_integration`
+        method on the integration provider.
+
+        Each provider may have their own way of reauthorizing the
+        integration.
+        """
+        if self.provider == "slack":
+            metadata = data.get("metadata", {})
+            metadata["old_access_token"] = self.metadata["access_token"]
+            self.update(metadata=metadata)

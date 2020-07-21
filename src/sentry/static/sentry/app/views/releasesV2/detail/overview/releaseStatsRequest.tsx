@@ -20,7 +20,7 @@ import CHART_PALETTE from 'app/constants/chartPalette';
 
 import {YAxis} from './chart/releaseChartControls';
 import {getInterval, getReleaseEventView} from './chart/utils';
-import {displayCrashFreePercent, getCrashFreePercent} from '../../utils';
+import {displayCrashFreePercent, getCrashFreePercent, roundDuration} from '../../utils';
 
 const omitIgnoredProps = (props: Props) =>
   omitBy(props, (_, key) =>
@@ -235,6 +235,10 @@ class ReleaseStatsRequest extends React.Component<Props, State> {
           color: CHART_PALETTE[3][0],
           opacity: 1,
         },
+        lineStyle: {
+          opacity: 0,
+          width: 0.4,
+        },
       },
       abnormal: {
         seriesName: t('Abnormal'),
@@ -243,6 +247,10 @@ class ReleaseStatsRequest extends React.Component<Props, State> {
         areaStyle: {
           color: CHART_PALETTE[3][1],
           opacity: 1,
+        },
+        lineStyle: {
+          opacity: 0,
+          width: 0.4,
         },
       },
       errored: {
@@ -253,6 +261,10 @@ class ReleaseStatsRequest extends React.Component<Props, State> {
           color: CHART_PALETTE[3][2],
           opacity: 1,
         },
+        lineStyle: {
+          opacity: 0,
+          width: 0.4,
+        },
       },
       healthy: {
         seriesName: t('Healthy'),
@@ -261,6 +273,10 @@ class ReleaseStatsRequest extends React.Component<Props, State> {
         areaStyle: {
           color: CHART_PALETTE[3][3],
           opacity: 1,
+        },
+        lineStyle: {
+          opacity: 0,
+          width: 0.4,
         },
       },
     };
@@ -352,23 +368,26 @@ class ReleaseStatsRequest extends React.Component<Props, State> {
     const chartData: Series = {
       seriesName: t('Session Duration'),
       data: [],
+      lineStyle: {
+        opacity: 0,
+      },
     };
 
-    const sessionDurationAverage = Math.round(
+    const sessionDurationAverage =
       mean(
         responseData
           .map(([timeframe, values]) => {
             chartData.data.push({
               name: timeframe * 1000,
-              value: Math.round(values.duration_p50),
+              value: roundDuration(values.duration_p50),
             });
 
             return values.duration_p50;
           })
           .filter(duration => defined(duration))
-      ) || 0
-    );
-    const summary = getExactDuration(sessionDurationAverage ?? 0);
+      ) || 0;
+
+    const summary = getExactDuration(roundDuration(sessionDurationAverage));
 
     return {chartData: [chartData], chartSummary: summary};
   }

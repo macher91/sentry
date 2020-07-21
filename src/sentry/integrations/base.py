@@ -31,8 +31,8 @@ from sentry.shared_integrations.constants import (
     ERR_INTERNAL,
     ERR_UNSUPPORTED_RESPONSE_TYPE,
 )
-from sentry.models import Identity, OrganizationIntegration
-
+from sentry.models import AuditLogEntryEvent, Identity, OrganizationIntegration
+from sentry.utils.audit import create_audit_entry
 
 FeatureDescription = namedtuple(
     "FeatureDescription",
@@ -157,6 +157,9 @@ class IntegrationProvider(PipelineProvider):
     # can be any number of IntegrationFeatures
     features = frozenset()
 
+    # if this is hidden without the feature flag
+    requires_feature_flag = False
+
     @classmethod
     def get_installation(cls, model, organization_id, **kwargs):
         if cls.integration_cls is None:
@@ -171,8 +174,21 @@ class IntegrationProvider(PipelineProvider):
     def get_logger(self):
         return logging.getLogger("sentry.integration.%s" % (self.key,))
 
-    def post_install(self, integration, organization):
+    def post_install(self, integration, organization, extra=None):
         pass
+
+    def create_audit_log_entry(self, integration, organization, request, action, extra=None):
+        """
+        Creates an audit log entry for the newly installed integration.
+        """
+        if action == "install":
+            create_audit_entry(
+                request=request,
+                organization=organization,
+                target_object=integration.id,
+                event=AuditLogEntryEvent.INTEGRATION_ADD,
+                data={"provider": integration.provider, "name": integration.name},
+            )
 
     def get_pipeline_views(self):
         """

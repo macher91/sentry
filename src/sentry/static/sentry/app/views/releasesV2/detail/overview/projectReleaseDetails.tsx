@@ -1,22 +1,27 @@
 import React from 'react';
 import styled from '@emotion/styled';
 
-import {t} from 'app/locale';
+import {t, tn} from 'app/locale';
 import space from 'app/styles/space';
-import {Release} from 'app/types';
+import {ReleaseWithHealth, ReleaseMeta} from 'app/types';
 import Version from 'app/components/version';
 import TimeSince from 'app/components/timeSince';
 import DateTime from 'app/components/dateTime';
-import Tooltip from 'app/components/tooltip';
+import Link from 'app/components/links/link';
+import Count from 'app/components/count';
+import Feature from 'app/components/acl/feature';
 
 import {SectionHeading, Wrapper} from './styles';
 
 type Props = {
-  release: Release;
+  release: ReleaseWithHealth;
+  releaseMeta: ReleaseMeta;
+  orgSlug: string;
+  projectSlug: string;
 };
 
-const ProjectReleaseDetails = ({release}: Props) => {
-  const {version, dateCreated, firstEvent, lastEvent, lastDeploy} = release;
+const ProjectReleaseDetails = ({release, releaseMeta, orgSlug, projectSlug}: Props) => {
+  const {version, dateCreated, firstEvent, lastEvent} = release;
 
   return (
     <Wrapper>
@@ -29,17 +34,6 @@ const ProjectReleaseDetails = ({release}: Props) => {
               <DateTime date={dateCreated} seconds={false} />
             </TagValue>
           </StyledTr>
-
-          {lastDeploy?.dateFinished && (
-            <StyledTr>
-              <TagKey>{t('Last Deploy')}</TagKey>
-              <TagValue>
-                <Tooltip title={lastDeploy.environment}>
-                  <DateTime date={lastDeploy.dateFinished} seconds={false} />
-                </Tooltip>
-              </TagValue>
-            </StyledTr>
-          )}
 
           <StyledTr>
             <TagKey>{t('Version')}</TagKey>
@@ -57,6 +51,22 @@ const ProjectReleaseDetails = ({release}: Props) => {
             <TagKey>{t('Last Event')}</TagKey>
             <TagValue>{lastEvent ? <TimeSince date={lastEvent} /> : '-'}</TagValue>
           </StyledTr>
+
+          <Feature features={['artifacts-in-settings']}>
+            <StyledTr>
+              <TagKey>{t('Source Maps')}</TagKey>
+              <TagValue>
+                <Link
+                  to={`/settings/${orgSlug}/projects/${projectSlug}/source-maps/${encodeURIComponent(
+                    version
+                  )}/`}
+                >
+                  <Count value={releaseMeta.releaseFileCount} />{' '}
+                  {tn('artifact', 'artifacts', releaseMeta.releaseFileCount)}
+                </Link>
+              </TagValue>
+            </StyledTr>
+          </Feature>
         </tbody>
       </StyledTable>
     </Wrapper>
@@ -71,12 +81,12 @@ const StyledTable = styled('table')`
 
 const StyledTr = styled('tr')`
   &:nth-child(2n + 1) td {
-    background-color: ${p => p.theme.offWhite};
+    background-color: ${p => p.theme.gray100};
   }
 `;
 
 const TagKey = styled('td')`
-  color: ${p => p.theme.gray3};
+  color: ${p => p.theme.gray700};
   padding: ${space(0.5)} ${space(1)};
   font-size: ${p => p.theme.fontSizeMedium};
   white-space: nowrap;
@@ -86,6 +96,7 @@ const TagKey = styled('td')`
 
 const TagValue = styled(TagKey)`
   text-align: right;
+  color: ${p => p.theme.gray600};
   @media (min-width: ${p => p.theme.breakpoints[0]}) {
     width: 160px;
   }

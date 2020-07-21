@@ -1,6 +1,6 @@
 import React from 'react';
 
-import ContextBlock from 'app/components/events/contexts/contextBlockV2';
+import ContextBlock from 'app/components/events/contexts/contextBlock';
 
 import getOperatingSystemKnownData from './getGPUKnownData';
 import {GPUData, GPUKnownDataType} from './types';
@@ -31,7 +31,5 @@ const GPU = ({data}: Props) => {
     <ContextBlock knownData={getOperatingSystemKnownData(data, gpuKnownDataValues)} />
   );
 };
-
-GPU.getTitle = () => 'GPU';
 
 export default GPU;

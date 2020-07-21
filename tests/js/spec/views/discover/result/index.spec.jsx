@@ -1,6 +1,7 @@
 import React from 'react';
 
 import {mountWithTheme, shallow} from 'sentry-test/enzyme';
+
 import Result from 'app/views/discover/result';
 import createQueryBuilder from 'app/views/discover/queryBuilder';
 
@@ -36,7 +37,6 @@ describe('Result', function() {
         />,
         {
           context: {organization},
-          disableLifecycleMethods: false,
         }
       );
     });

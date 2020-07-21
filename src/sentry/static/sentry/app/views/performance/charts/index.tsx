@@ -12,28 +12,14 @@ import getDynamicText from 'app/utils/getDynamicText';
 import {getParams} from 'app/components/organizations/globalSelectionHeader/getParams';
 import {Panel} from 'app/components/panels';
 import EventView from 'app/utils/discover/eventView';
-import EventsRequest from 'app/views/events/utils/eventsRequest';
+import EventsRequest from 'app/components/charts/eventsRequest';
 import {getUtcToLocalDateObject} from 'app/utils/dates';
 import {IconWarning} from 'app/icons';
-import theme from 'app/utils/theme';
 
-import {PERFORMANCE_TERMS} from '../constants';
+import {AXIS_OPTIONS} from '../constants';
 import {HeaderContainer, HeaderTitle, ErrorPanel} from '../styles';
 import Chart from './chart';
 import Footer from './footer';
-
-const YAXIS_OPTIONS = [
-  {
-    label: 'Apdex',
-    value: 'apdex(300)',
-    tooltip: PERFORMANCE_TERMS.apdex,
-  },
-  {
-    label: 'Throughput',
-    value: 'rpm()',
-    tooltip: PERFORMANCE_TERMS.rpm,
-  },
-];
 
 type Props = {
   api: Client;
@@ -45,64 +31,70 @@ type Props = {
 };
 
 class Container extends React.Component<Props> {
+  getChartParameters() {
+    const {location} = this.props;
+    const left =
+      AXIS_OPTIONS.find(opt => opt.value === location.query.left) || AXIS_OPTIONS[0];
+    const right =
+      AXIS_OPTIONS.find(opt => opt.value === location.query.right) || AXIS_OPTIONS[1];
+
+    return [left, right];
+  }
+
   render() {
     const {api, organization, location, eventView, router, keyTransactions} = this.props;
 
     // construct request parameters for fetching chart data
-
     const globalSelection = eventView.getGlobalSelection();
-    const start = globalSelection.start
-      ? getUtcToLocalDateObject(globalSelection.start)
+    const start = globalSelection.datetime.start
+      ? getUtcToLocalDateObject(globalSelection.datetime.start)
       : undefined;
 
-    const end = globalSelection.end
-      ? getUtcToLocalDateObject(globalSelection.end)
+    const end = globalSelection.datetime.end
+      ? getUtcToLocalDateObject(globalSelection.datetime.end)
       : undefined;
 
     const {utc} = getParams(location.query);
+    const axisOptions = this.getChartParameters();
 
     return (
       <Panel>
         <EventsRequest
           organization={organization}
           api={api}
-          period={globalSelection.statsPeriod}
-          project={globalSelection.project}
-          environment={globalSelection.environment}
+          period={globalSelection.datetime.period}
+          project={globalSelection.projects}
+          environment={globalSelection.environments}
           start={start}
           end={end}
           interval={getInterval(
             {
               start: start || null,
               end: end || null,
-              period: globalSelection.statsPeriod,
+              period: globalSelection.datetime.period,
             },
             true
           )}
           showLoading={false}
           query={eventView.getEventsAPIPayload(location).query}
           includePrevious={false}
-          yAxis={YAXIS_OPTIONS.map(option => option.value)}
+          yAxis={axisOptions.map(opt => opt.value)}
           keyTransactions={keyTransactions}
         >
           {({loading, reloading, errored, results}) => {
             if (errored) {
               return (
                 <ErrorPanel>
-                  <IconWarning color={theme.gray2} size="lg" />
+                  <IconWarning color="gray500" size="lg" />
                 </ErrorPanel>
               );
-            }
-
-            if (!results) {
-              return <LoadingPanel data-test-id="events-request-loading" />;
             }
 
             return (
               <React.Fragment>
                 <HeaderContainer>
-                  {YAXIS_OPTIONS.map(option => (
-                    <div key={option.label}>
+                  {axisOptions.map((option, i) => (
+                    <div key={`${option.label}:${i}`}>
                       <HeaderTitle>
                         {option.label}
                         <QuestionTooltip
@@ -114,26 +106,32 @@ class Container extends React.Component<Props> {
                     </div>
                   ))}
                 </HeaderContainer>
-                {getDynamicText({
-                  value: (
-                    <Chart
-                      data={results}
-                      loading={loading || reloading}
-                      router={router}
-                      statsPeriod={globalSelection.statsPeriod}
-                      utc={utc === 'true'}
-                      projects={globalSelection.project}
-                      environments={globalSelection.environment}
-                    />
-                  ),
-                  fixed: 'performance charts',
-                })}
+                {results ? (
+                  getDynamicText({
+                    value: (
+                      <Chart
+                        data={results}
+                        loading={loading || reloading}
+                        router={router}
+                        statsPeriod={globalSelection.datetime.period}
+                        utc={utc === 'true'}
+                        projects={globalSelection.projects}
+                        environments={globalSelection.environments}
+                      />
+                    ),
+                    fixed: 'apdex and throughput charts',
+                  })
+                ) : (
+                  <LoadingPanel data-test-id="events-request-loading" />
+                )}
               </React.Fragment>
             );
           }}
         </EventsRequest>
         <Footer
           api={api}
+          leftAxis={axisOptions[0].value}
+          rightAxis={axisOptions[1].value}
           organization={organization}
           eventView={eventView}
           location={location}

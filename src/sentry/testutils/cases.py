@@ -43,6 +43,7 @@ from django.test import override_settings, TestCase, TransactionTestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from exam import before, fixture, Exam
+from concurrent.futures import ThreadPoolExecutor
 from sentry.utils.compat.mock import patch
 from pkg_resources import iter_entry_points
 from rest_framework.test import APITestCase as BaseAPITestCase
@@ -85,7 +86,6 @@ from .skips import requires_snuba
 from .helpers import (
     AuthProvider,
     Feature,
-    get_auth_header,
     TaskRunner,
     override_options,
     parse_queries,
@@ -227,135 +227,12 @@ class BaseTestCase(Fixtures, Exam):
     def _makePostMessage(self, data):
         return base64.b64encode(self._makeMessage(data))
 
-    def _postWithHeader(self, data, key=None, secret=None, protocol=None, **extra):
-        if key is None:
-            key = self.projectkey.public_key
-            secret = self.projectkey.secret_key
-
-        message = self._makePostMessage(data)
-        with self.tasks():
-            resp = self.client.post(
-                reverse("sentry-api-store"),
-                message,
-                content_type="application/octet-stream",
-                HTTP_X_SENTRY_AUTH=get_auth_header("_postWithHeader/0.0.0", key, secret, protocol),
-                **extra
-            )
-        return resp
-
-    def _postCspWithHeader(self, data, key=None, **extra):
-        if isinstance(data, dict):
-            body = json.dumps({"csp-report": data})
-        elif isinstance(data, six.string_types):
-            body = data
-        path = reverse("sentry-api-csp-report", kwargs={"project_id": self.project.id})
-        path += "?sentry_key=%s" % self.projectkey.public_key
-        with self.tasks():
-            return self.client.post(
-                path,
-                data=body,
-                content_type="application/csp-report",
-                HTTP_USER_AGENT=DEFAULT_USER_AGENT,
-                **extra
-            )
-
-    def _postMinidumpWithHeader(
-        self, upload_file_minidump, data=None, key=None, raw=False, **extra
-    ):
-        if raw:
-            data = upload_file_minidump.read()
-            extra.setdefault("content_type", "application/octet-stream")
-        else:
-            data = dict(data or {})
-            data["upload_file_minidump"] = upload_file_minidump
-
-        path = reverse("sentry-api-minidump", kwargs={"project_id": self.project.id})
-        path += "?sentry_key=%s" % self.projectkey.public_key
-        with self.tasks():
-            return self.client.post(path, data=data, HTTP_USER_AGENT=DEFAULT_USER_AGENT, **extra)
-
-    def _postUnrealWithHeader(self, upload_unreal_crash, data=None, key=None, **extra):
-        path = reverse(
-            "sentry-api-unreal",
-            kwargs={"project_id": self.project.id, "sentry_key": self.projectkey.public_key},
-        )
-        with self.tasks():
-            return self.client.post(
-                path,
-                data=upload_unreal_crash,
-                content_type="application/octet-stream",
-                HTTP_USER_AGENT=DEFAULT_USER_AGENT,
-                **extra
-            )
-
-    def _postEventAttachmentWithHeader(self, attachment, **extra):
-        path = reverse(
-            "sentry-api-event-attachment",
-            kwargs={"project_id": self.project.id, "event_id": self.event.event_id},
-        )
-
-        key = self.projectkey.public_key
-        secret = self.projectkey.secret_key
-
-        with self.tasks():
-            return self.client.post(
-                path,
-                attachment,
-                # HTTP_USER_AGENT=DEFAULT_USER_AGENT,
-                HTTP_X_SENTRY_AUTH=get_auth_header("_postWithHeader/0.0.0", key, secret, 7),
-                **extra
-            )
-
-    def _getWithReferer(self, data, key=None, referer="sentry.io", protocol="4"):
-        if key is None:
-            key = self.projectkey.public_key
-
-        headers = {}
-        if referer is not None:
-            headers["HTTP_REFERER"] = referer
-
-        message = self._makeMessage(data)
-        qs = {
-            "sentry_version": protocol,
-            "sentry_client": "raven-js/lol",
-            "sentry_key": key,
-            "sentry_data": message,
-        }
-        with self.tasks():
-            resp = self.client.get(
-                "%s?%s" % (reverse("sentry-api-store", args=(self.project.pk,)), urlencode(qs)),
-                **headers
-            )
-        return resp
-
-    def _postWithReferer(self, data, key=None, referer="sentry.io", protocol="4"):
-        if key is None:
-            key = self.projectkey.public_key
-
-        headers = {}
-        if referer is not None:
-            headers["HTTP_REFERER"] = referer
-
-        message = self._makeMessage(data)
-        qs = {"sentry_version": protocol, "sentry_client": "raven-js/lol", "sentry_key": key}
-        with self.tasks():
-            resp = self.client.post(
-                "%s?%s" % (reverse("sentry-api-store", args=(self.project.pk,)), urlencode(qs)),
-                data=message,
-                content_type="application/json",
-                **headers
-            )
-        return resp
-
     def options(self, options):
         """
         A context manager that temporarily sets a global option and reverts
         back to the original value when exiting the context.
         """
         return override_options(options)
-
-    _postWithSignature = _postWithHeader
-    _postWithNewSignature = _postWithHeader
 
     def assert_valid_deleted_log(self, deleted_log, original_object):
         assert deleted_log is not None
@@ -715,27 +592,19 @@ class AcceptanceTestCase(TransactionTestCase):
         # Forward session cookie to django client.
         self.client.cookies[settings.SESSION_COOKIE_NAME] = self.session.session_key
 
-    def dismiss_assistant(self):
-        res = self.client.put(
-            "/api/0/assistant/?v2",
-            content_type="application/json",
-            data=json.dumps({"guide": "discover_sidebar", "status": "viewed", "useful": True}),
-        )
-        assert res.status_code == 201
+    def dismiss_assistant(self, which=None):
+        if which is None:
+            which = ("issue", "issue_stream")
+        if isinstance(which, six.string_types):
+            which = [which]
 
-        res = self.client.put(
-            "/api/0/assistant/?v2",
-            content_type="application/json",
-            data=json.dumps({"guide": "issue", "status": "viewed", "useful": True}),
-        )
-        assert res.status_code == 201
-
-        res = self.client.put(
-            "/api/0/assistant/?v2",
-            content_type="application/json",
-            data=json.dumps({"guide": "issue_stream", "status": "viewed", "useful": True}),
-        )
-        assert res.status_code == 201
+        for item in which:
+            res = self.client.put(
+                "/api/0/assistant/?v2",
+                content_type="application/json",
+                data=json.dumps({"guide": item, "status": "viewed", "useful": True}),
+            )
+            assert res.status_code == 201, res.content
 
 
 class IntegrationTestCase(TestCase):
@@ -779,18 +648,27 @@ class SnubaTestCase(BaseTestCase):
     tests that require snuba.
     """
 
+    init_endpoints = (
+        "/tests/events/drop",
+        "/tests/groupedmessage/drop",
+        "/tests/transactions/drop",
+        "/tests/sessions/drop",
+    )
+
     def setUp(self):
         super(SnubaTestCase, self).setUp()
         self.init_snuba()
 
+    def call_snuba(self, endpoint):
+        return requests.post(settings.SENTRY_SNUBA + endpoint)
+
     def init_snuba(self):
         self.snuba_eventstream = SnubaEventStream()
         self.snuba_tagstore = SnubaTagStorage()
-        assert requests.post(settings.SENTRY_SNUBA + "/tests/events/drop").status_code == 200
-        assert (
-            requests.post(settings.SENTRY_SNUBA + "/tests/groupedmessage/drop").status_code == 200
+        assert all(
+            response.status_code == 200
+            for response in ThreadPoolExecutor(4).map(self.call_snuba, self.init_endpoints)
         )
-        assert requests.post(settings.SENTRY_SNUBA + "/tests/transactions/drop").status_code == 200
 
     def store_event(self, *args, **kwargs):
         with mock.patch("sentry.eventstream.insert", self.snuba_eventstream.insert):
@@ -799,6 +677,14 @@ class SnubaTestCase(BaseTestCase):
             if stored_group is not None:
                 self.store_group(stored_group)
             return stored_event
+
+    def store_session(self, session):
+        assert (
+            requests.post(
+                settings.SENTRY_SNUBA + "/tests/sessions/insert", data=json.dumps([session])
+            ).status_code
+            == 200
+        )
 
     def store_group(self, group):
         data = [self.__wrap_group(group)]
@@ -887,7 +773,7 @@ class SnubaTestCase(BaseTestCase):
 
         assert (
             requests.post(
-                settings.SENTRY_SNUBA + "/tests/events/insert", data=json.dumps(events)
+                settings.SENTRY_SNUBA + "/tests/events/insert", data=json.dumps(events),
             ).status_code
             == 200
         )

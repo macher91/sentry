@@ -1,7 +1,7 @@
 import React from 'react';
-import toJson from 'enzyme-to-json';
 
 import {shallow} from 'sentry-test/enzyme';
+
 import EventOrGroupExtraDetails from 'app/components/eventOrGroupExtraDetails';
 
 describe('EventOrGroupExtraDetails', function() {
@@ -16,7 +16,7 @@ describe('EventOrGroupExtraDetails', function() {
       />
     );
 
-    expect(toJson(component)).toMatchSnapshot();
+    expect(component).toMatchSnapshot();
   });
 
   it('renders only first seen', function() {
@@ -29,7 +29,7 @@ describe('EventOrGroupExtraDetails', function() {
       />
     );
 
-    expect(toJson(component)).toMatchSnapshot();
+    expect(component).toMatchSnapshot();
   });
 
   it('renders only last seen', function() {
@@ -42,7 +42,7 @@ describe('EventOrGroupExtraDetails', function() {
       />
     );
 
-    expect(toJson(component)).toMatchSnapshot();
+    expect(component).toMatchSnapshot();
   });
 
   it('renders all details', function() {
@@ -64,7 +64,7 @@ describe('EventOrGroupExtraDetails', function() {
       />
     );
 
-    expect(toJson(component)).toMatchSnapshot();
+    expect(component).toMatchSnapshot();
   });
 
   it('renders assignee and status', function() {
@@ -88,7 +88,7 @@ describe('EventOrGroupExtraDetails', function() {
       />
     );
 
-    expect(toJson(component)).toMatchSnapshot();
+    expect(component).toMatchSnapshot();
   });
 
   it('details when mentioned', function() {
@@ -107,6 +107,6 @@ describe('EventOrGroupExtraDetails', function() {
       />
     );
 
-    expect(toJson(component)).toMatchSnapshot();
+    expect(component).toMatchSnapshot();
   });
 });

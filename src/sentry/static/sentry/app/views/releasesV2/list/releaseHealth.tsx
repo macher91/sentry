@@ -1,13 +1,14 @@
 import React from 'react';
 import styled from '@emotion/styled';
 import {Location} from 'history';
+import partition from 'lodash/partition';
+import flatten from 'lodash/flatten';
 
-import {Release} from 'app/types';
+import {Release, GlobalSelection} from 'app/types';
 import GlobalSelectionLink from 'app/components/globalSelectionLink';
 import {PanelHeader, PanelBody, PanelItem} from 'app/components/panels';
 import {t, tn} from 'app/locale';
 import space from 'app/styles/space';
-import ProgressRing from 'app/components/progressRing';
 import Count from 'app/components/count';
 import {defined} from 'app/utils';
 import theme from 'app/utils/theme';
@@ -15,28 +16,44 @@ import ScoreBar from 'app/components/scoreBar';
 import Tooltip from 'app/components/tooltip';
 import ProjectBadge from 'app/components/idBadge/projectBadge';
 import TextOverflow from 'app/components/textOverflow';
-import ClippedBox from 'app/components/clippedBox';
+import Placeholder from 'app/components/placeholder';
+import Link from 'app/components/links/link';
 
 import HealthStatsChart from './healthStatsChart';
-import {
-  displayCrashFreePercent,
-  convertAdoptionToProgress,
-  getCrashFreePercentColor,
-} from '../utils';
+import {convertAdoptionToProgress, getReleaseNewIssuesUrl} from '../utils';
 import HealthStatsSubject, {StatsSubject} from './healthStatsSubject';
 import HealthStatsPeriod, {StatsPeriod} from './healthStatsPeriod';
 import AdoptionTooltip from './adoptionTooltip';
 import NotAvailable from './notAvailable';
+import ClippedHealthRows from './clippedHealthRows';
+import CrashFree from './crashFree';
 
 type Props = {
   release: Release;
   orgSlug: string;
   location: Location;
+  showPlaceholders: boolean;
+  selection: GlobalSelection;
 };
 
-const ReleaseHealth = ({release, orgSlug, location}: Props) => {
+const ReleaseHealth = ({
+  release,
+  orgSlug,
+  location,
+  selection,
+  showPlaceholders,
+}: Props) => {
   const activeStatsPeriod = (location.query.healthStatsPeriod || '24h') as StatsPeriod;
   const activeStatsSubject = (location.query.healthStat || 'sessions') as StatsSubject;
+
+  // sort health rows inside release card alphabetically by project name,
+  // but put the ones with project selected in global header to top
+  const sortedProjects = flatten(
+    partition(
+      release.projects.sort((a, b) => a.slug.localeCompare(b.slug)),
+      p => selection.projects.includes(p.id)
+    )
+  );
 
   return (
     <React.Fragment>
@@ -47,17 +64,8 @@ const ReleaseHealth = ({release, orgSlug, location}: Props) => {
           <CrashFreeUsersColumn>{t('Crash free users')}</CrashFreeUsersColumn>
           <CrashFreeSessionsColumn>{t('Crash free sessions')}</CrashFreeSessionsColumn>
           <DailyUsersColumn>
-            {release.projects.some(p => p.healthData.hasHealthData) ? (
-              <React.Fragment>
-                <HealthStatsSubject
-                  location={location}
-                  activeSubject={activeStatsSubject}
-                />
-                <HealthStatsPeriod location={location} activePeriod={activeStatsPeriod} />
-              </React.Fragment>
-            ) : (
-              t('Daily active users')
-            )}
+            <HealthStatsSubject location={location} activeSubject={activeStatsSubject} />
+            <HealthStatsPeriod location={location} activePeriod={activeStatsPeriod} />
           </DailyUsersColumn>
           <CrashesColumn>{t('Crashes')}</CrashesColumn>
           <NewIssuesColumn>{t('New Issues')}</NewIssuesColumn>
@@ -65,134 +73,135 @@ const ReleaseHealth = ({release, orgSlug, location}: Props) => {
       </StyledPanelHeader>
 
       <PanelBody>
-        <ClippedBox clipHeight={200}>
-          {release.projects
-            .sort((a, b) => a.slug.localeCompare(b.slug))
-            .map(project => {
-              const {id, slug, healthData, newGroups} = project;
-              const {
-                hasHealthData,
-                adoption,
-                stats,
-                crashFreeUsers,
-                crashFreeSessions,
-                sessionsCrashed,
-                totalUsers,
-                totalUsers24h,
-                totalSessions,
-                totalSessions24h,
-              } = healthData;
+        <ClippedHealthRows fadeHeight="46px" maxVisibleItems={4}>
+          {sortedProjects.map((project, index) => {
+            const {id, slug, healthData, newGroups} = project;
+            const {
+              hasHealthData,
+              adoption,
+              stats,
+              crashFreeUsers,
+              crashFreeSessions,
+              sessionsCrashed,
+              totalUsers,
+              totalUsers24h,
+              totalSessions,
+              totalSessions24h,
+            } = healthData || {};
 
-              return (
-                <StyledPanelItem key={`${release.version}-${slug}-health`}>
-                  <Layout>
-                    <ProjectColumn>
-                      <GlobalSelectionLink
-                        to={{
-                          pathname: `/organizations/${orgSlug}/releases/${encodeURIComponent(
-                            release.version
-                          )}/`,
-                          query: {project: id},
-                        }}
-                      >
-                        <ProjectBadge project={project} avatarSize={16} key={slug} />
-                      </GlobalSelectionLink>
-                    </ProjectColumn>
+            return (
+              <StyledPanelItem
+                key={`${release.version}-${slug}-health`}
+                isLast={index === sortedProjects.length - 1}
+              >
+                <Layout>
+                  <ProjectColumn>
+                    <GlobalSelectionLink
+                      to={{
+                        pathname: `/organizations/${orgSlug}/releases/${encodeURIComponent(
+                          release.version
+                        )}/`,
+                        query: {project: id},
+                      }}
+                    >
+                      <ProjectBadge project={project} avatarSize={16} key={slug} />
+                    </GlobalSelectionLink>
+                  </ProjectColumn>
 
-                    <AdoptionColumn>
-                      {defined(adoption) ? (
-                        <AdoptionWrapper>
-                          <Tooltip
-                            title={
-                              <AdoptionTooltip
-                                totalUsers={totalUsers}
-                                totalSessions={totalSessions}
-                                totalUsers24h={totalUsers24h}
-                                totalSessions24h={totalSessions24h}
-                              />
-                            }
-                          >
-                            <StyledScoreBar
-                              score={convertAdoptionToProgress(adoption)}
-                              size={20}
-                              thickness={5}
-                              radius={0}
-                              palette={Array(10).fill(theme.green)}
+                  <AdoptionColumn>
+                    {showPlaceholders ? (
+                      <StyledPlaceholder width="150px" />
+                    ) : defined(adoption) ? (
+                      <AdoptionWrapper>
+                        <Tooltip
+                          title={
+                            <AdoptionTooltip
+                              totalUsers={totalUsers!}
+                              totalSessions={totalSessions!}
+                              totalUsers24h={totalUsers24h!}
+                              totalSessions24h={totalSessions24h!}
                             />
-                          </Tooltip>
-                          <TextOverflow>
-                            <Count value={totalUsers24h ?? 0} />{' '}
-                            {tn('user', 'users', totalUsers24h)}
-                          </TextOverflow>
-                        </AdoptionWrapper>
-                      ) : (
-                        <NotAvailable />
-                      )}
-                    </AdoptionColumn>
-
-                    <CrashFreeUsersColumn>
-                      {defined(crashFreeUsers) ? (
-                        <React.Fragment>
-                          <StyledProgressRing
-                            progressColor={getCrashFreePercentColor}
-                            value={crashFreeUsers}
+                          }
+                        >
+                          <StyledScoreBar
+                            score={convertAdoptionToProgress(adoption)}
+                            size={20}
+                            thickness={5}
+                            radius={0}
+                            palette={Array(10).fill(theme.purple500)}
                           />
-                          <ProgressRingCaption>
-                            {displayCrashFreePercent(crashFreeUsers)}
-                          </ProgressRingCaption>
-                        </React.Fragment>
-                      ) : (
-                        <NotAvailable />
-                      )}
-                    </CrashFreeUsersColumn>
+                        </Tooltip>
+                        <TextOverflow>
+                          <Count value={totalUsers24h ?? 0} />{' '}
+                          {tn('user', 'users', totalUsers24h)}
+                        </TextOverflow>
+                      </AdoptionWrapper>
+                    ) : (
+                      <NotAvailable />
+                    )}
+                  </AdoptionColumn>
 
-                    <CrashFreeSessionsColumn>
-                      {defined(crashFreeSessions) ? (
-                        <React.Fragment>
-                          <StyledProgressRing
-                            progressColor={getCrashFreePercentColor}
-                            value={crashFreeSessions}
-                          />
-                          <ProgressRingCaption>
-                            {displayCrashFreePercent(crashFreeSessions)}
-                          </ProgressRingCaption>
-                        </React.Fragment>
-                      ) : (
-                        <NotAvailable />
-                      )}
-                    </CrashFreeSessionsColumn>
+                  <CrashFreeUsersColumn>
+                    {showPlaceholders ? (
+                      <StyledPlaceholder width="60px" />
+                    ) : defined(crashFreeUsers) ? (
+                      <CrashFree percent={crashFreeUsers} />
+                    ) : (
+                      <NotAvailable />
+                    )}
+                  </CrashFreeUsersColumn>
 
-                    <DailyUsersColumn>
-                      {hasHealthData ? (
-                        <ChartWrapper>
-                          <HealthStatsChart
-                            data={stats}
-                            height={20}
-                            period={activeStatsPeriod}
-                            subject={activeStatsSubject}
-                          />
-                        </ChartWrapper>
-                      ) : (
-                        <NotAvailable />
-                      )}
-                    </DailyUsersColumn>
+                  <CrashFreeSessionsColumn>
+                    {showPlaceholders ? (
+                      <StyledPlaceholder width="60px" />
+                    ) : defined(crashFreeSessions) ? (
+                      <CrashFree percent={crashFreeSessions} />
+                    ) : (
+                      <NotAvailable />
+                    )}
+                  </CrashFreeSessionsColumn>
 
-                    <CrashesColumn>
-                      {hasHealthData ? (
-                        <Count value={sessionsCrashed} />
-                      ) : (
-                        <NotAvailable />
-                      )}
-                    </CrashesColumn>
+                  <DailyUsersColumn>
+                    {showPlaceholders ? (
+                      <StyledPlaceholder />
+                    ) : hasHealthData && defined(stats) ? (
+                      <ChartWrapper>
+                        <HealthStatsChart
+                          data={stats}
+                          height={20}
+                          period={activeStatsPeriod}
+                          subject={activeStatsSubject}
+                        />
+                      </ChartWrapper>
+                    ) : (
+                      <NotAvailable />
+                    )}
+                  </DailyUsersColumn>
 
-                    <NewIssuesColumn>
-                      <Count value={newGroups || 0} />
-                    </NewIssuesColumn>
-                  </Layout>
-                </StyledPanelItem>
-              );
-            })}
-        </ClippedBox>
+                  <CrashesColumn>
+                    {showPlaceholders ? (
+                      <StyledPlaceholder width="30px" />
+                    ) : hasHealthData && defined(sessionsCrashed) ? (
+                      <Count value={sessionsCrashed} />
+                    ) : (
+                      <NotAvailable />
+                    )}
+                  </CrashesColumn>
+
+                  <NewIssuesColumn>
+                    <Tooltip title={t('Open in Issues')}>
+                      <Link
+                        to={getReleaseNewIssuesUrl(orgSlug, project.id, release.version)}
+                      >
+                        <Count value={newGroups || 0} />
+                      </Link>
+                    </Tooltip>
+                  </NewIssuesColumn>
+                </Layout>
+              </StyledPanelItem>
+            );
+          })}
+        </ClippedHealthRows>
       </PanelBody>
     </React.Fragment>
   );
@@ -202,13 +211,14 @@ const StyledPanelHeader = styled(PanelHeader)`
   border-top: 1px solid ${p => p.theme.borderDark};
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  color: ${p => p.theme.gray2};
+  color: ${p => p.theme.gray500};
   font-size: ${p => p.theme.fontSizeSmall};
 `;
 
-const StyledPanelItem = styled(PanelItem)`
+const StyledPanelItem = styled(PanelItem)<{isLast: boolean}>`
   padding: ${space(1)} ${space(2)};
   min-height: 46px;
+  border: ${p => (p.isLast ? 'none' : null)};
 `;
 
 const Layout = styled('div')`
@@ -301,22 +311,19 @@ const StyledScoreBar = styled(ScoreBar)`
   margin-right: ${space(1)};
 `;
 
-const StyledProgressRing = styled(ProgressRing)`
-  position: relative;
-  top: ${space(0.5)};
-`;
-
-const ProgressRingCaption = styled('span')`
-  margin-left: ${space(1)};
-`;
-
 const ChartWrapper = styled('div')`
   flex: 1;
   g > .barchart-rect {
-    /* gray1 is too dark */
-    background: #c6becf;
-    fill: #c6becf;
+    background: ${p => p.theme.gray400};
+    fill: ${p => p.theme.gray400};
   }
+`;
+
+const StyledPlaceholder = styled(Placeholder)`
+  height: 20px;
+  display: inline-block;
+  position: relative;
+  top: ${space(0.25)};
 `;
 
 export default ReleaseHealth;

@@ -1,29 +1,23 @@
 import React from 'react';
 import {Location, LocationDescriptorObject} from 'history';
-import omit from 'lodash/omit';
-import styled from '@emotion/styled';
-import {browserHistory} from 'react-router';
+import * as ReactRouter from 'react-router';
 
-import space from 'app/styles/space';
-import {t} from 'app/locale';
 import {Organization, Project} from 'app/types';
-import PanelTable from 'app/components/panels/panelTable';
 import Pagination from 'app/components/pagination';
 import Link from 'app/components/links/link';
-import EventView, {MetaType, EventData} from 'app/utils/discover/eventView';
-import SortLink from 'app/views/eventsV2/sortLink';
+import EventView, {EventData, isFieldSortable} from 'app/utils/discover/eventView';
 import {TableData, TableDataRow, TableColumn} from 'app/views/eventsV2/table/types';
+import GridEditable, {COL_WIDTH_UNDEFINED, GridColumn} from 'app/components/gridEditable';
+import SortLink from 'app/components/gridEditable/sortLink';
 import HeaderCell from 'app/views/eventsV2/table/headerCell';
-import {decodeScalar} from 'app/utils/queryString';
-import withProjects from 'app/utils/withProjects';
-import SearchBar from 'app/components/searchBar';
+import CellAction, {Actions} from 'app/views/eventsV2/table/cellAction';
 import DiscoverQuery from 'app/utils/discover/discoverQuery';
 import {trackAnalyticsEvent} from 'app/utils/analytics';
-import {getAggregateAlias} from 'app/utils/discover/fields';
 import {getFieldRenderer} from 'app/utils/discover/fieldRenderers';
+import {tokenizeSearch, stringifyQueryObject} from 'app/utils/tokenizeSearch';
 
-import {transactionSummaryRouteWithEventView} from './transactionSummary/utils';
-import {GridBodyCell, GridBodyCellNumber, GridHeadCell} from './styles';
+import {transactionSummaryRouteWithQuery} from './transactionSummary/utils';
+import {COLUMN_TITLES} from './data';
 
 export function getProjectID(
   eventData: EventData,
@@ -50,135 +44,208 @@ type Props = {
   location: Location;
   setError: (msg: string | undefined) => void;
   keyTransactions: boolean;
+  summaryConditions: string;
 
   projects: Project[];
-  loadingProjects: boolean;
 };
 
-class Table extends React.Component<Props> {
-  renderResults(isLoading: boolean, tableData: TableData | null) {
-    let cells: React.ReactNode[] = [];
-    if (isLoading) {
-      return cells;
-    }
-    if (!tableData || !tableData.meta) {
-      return cells;
-    }
-    const columnOrder = this.props.eventView.getColumns();
+type State = {
+  widths: number[];
+};
 
-    tableData.data.forEach((row, index: number) => {
-      // check again to appease tsc
-      if (!tableData.meta) {
-        return;
+class Table extends React.Component<Props, State> {
+  state = {
+    widths: [],
+  };
+
+  handleCellAction = (column: TableColumn<keyof TableDataRow>) => {
+    return (action: Actions, value: React.ReactText) => {
+      const {eventView, location, organization} = this.props;
+
+      let nextLocationQuery: Location['query'] = {};
+      const searchConditions = tokenizeSearch(eventView.query);
+
+      // remove any event.type queries since it is implied to apply to only transactions
+      delete searchConditions['event.type'];
+
+      trackAnalyticsEvent({
+        eventKey: 'performance_views.overview.cellaction',
+        eventName: 'Performance Views: Cell Action Clicked',
+        organization_id: parseInt(organization.id, 10),
+        action,
+      });
+
+      switch (action) {
+        case Actions.ADD: {
+          // Remove exclusion if it exists.
+          delete searchConditions[`!${column.name}`];
+          searchConditions[column.name] = [`${value}`];
+
+          nextLocationQuery = {
+            query: stringifyQueryObject(searchConditions),
+          };
+
+          break;
+        }
+        case Actions.EXCLUDE: {
+          // Remove positive if it exists.
+          delete searchConditions[column.name];
+          // Negations should stack up.
+          const negation = `!${column.name}`;
+          if (!searchConditions.hasOwnProperty(negation)) {
+            searchConditions[negation] = [];
+          }
+          searchConditions[negation].push(`${value}`);
+
+          nextLocationQuery = {
+            query: stringifyQueryObject(searchConditions),
+          };
+
+          break;
+        }
+        case Actions.SHOW_GREATER_THAN: {
+          // Remove query token if it already exists
+          delete searchConditions[column.name];
+          searchConditions[column.name] = [`>${value}`];
+
+          nextLocationQuery = {
+            query: stringifyQueryObject(searchConditions),
+          };
+
+          break;
+        }
+        case Actions.SHOW_LESS_THAN: {
+          // Remove query token if it already exists
+          delete searchConditions[column.name];
+          searchConditions[column.name] = [`<${value}`];
+
+          nextLocationQuery = {
+            query: stringifyQueryObject(searchConditions),
+          };
+
+          break;
+        }
+        default:
+          throw new Error(`Unknown action type. ${action}`);
       }
-      cells = cells.concat(this.renderRow(row, index, columnOrder, tableData.meta));
-    });
-    return cells;
-  }
 
-  renderRow(
-    row: TableDataRow,
-    rowIndex: number,
-    columnOrder: TableColumn<React.ReactText>[],
-    tableMeta: MetaType
-  ) {
-    const {organization, location, projects} = this.props;
+      ReactRouter.browserHistory.push({
+        pathname: location.pathname,
+        query: {
+          ...location.query,
+          cursor: undefined,
+          ...nextLocationQuery,
+        },
+      });
+    };
+  };
 
-    return columnOrder.map((column, index) => {
+  renderBodyCell = (tableData: TableData | null) => {
+    const {eventView, organization, projects, location, summaryConditions} = this.props;
+
+    return (
+      column: TableColumn<keyof TableDataRow>,
+      dataRow: TableDataRow
+    ): React.ReactNode => {
+      if (!tableData || !tableData.meta) {
+        return dataRow[column.key];
+      }
+      const tableMeta = tableData.meta;
+
       const field = String(column.key);
-      // TODO(mark) add a better abstraction for this.
-      const fieldName = getAggregateAlias(field);
-      const fieldType = tableMeta[fieldName];
-
       const fieldRenderer = getFieldRenderer(field, tableMeta);
-      let rendered = fieldRenderer(row, {organization, location});
+      const rendered = fieldRenderer(dataRow, {organization, location});
 
-      const isFirstCell = index === 0;
+      const allowActions = [
+        Actions.ADD,
+        Actions.EXCLUDE,
+        Actions.SHOW_GREATER_THAN,
+        Actions.SHOW_LESS_THAN,
+      ];
 
-      if (isFirstCell) {
-        // the first column of the row should link to the transaction summary view
-        const projectID = getProjectID(row, projects);
+      if (field === 'transaction') {
+        const projectID = getProjectID(dataRow, projects);
+        const summaryView = eventView.clone();
+        summaryView.query = summaryConditions;
 
-        const target = transactionSummaryRouteWithEventView({
+        const target = transactionSummaryRouteWithQuery({
           orgSlug: organization.slug,
-          transaction: String(row.transaction) || '',
+          transaction: String(dataRow.transaction) || '',
+          query: summaryView.generateQueryStringObject(),
           projectID,
         });
 
-        rendered = (
-          <Link to={target} onClick={this.handleSummaryClick}>
-            {rendered}
-          </Link>
+        return (
+          <CellAction
+            column={column}
+            dataRow={dataRow}
+            handleCellAction={this.handleCellAction(column)}
+            allowActions={allowActions}
+          >
+            <Link to={target} onClick={this.handleSummaryClick}>
+              {rendered}
+            </Link>
+          </CellAction>
         );
       }
 
-      const key = `${rowIndex}:${column.key}:${index}`;
-      const isNumeric = ['integer', 'number', 'duration'].includes(fieldType);
-      if (isNumeric) {
-        return <GridBodyCellNumber key={key}>{rendered}</GridBodyCellNumber>;
+      if (field.startsWith('user_misery')) {
+        // don't display per cell actions for user_misery
+        return rendered;
       }
 
-      return <GridBodyCell key={key}>{rendered}</GridBodyCell>;
-    });
-  }
+      return (
+        <CellAction
+          column={column}
+          dataRow={dataRow}
+          handleCellAction={this.handleCellAction(column)}
+          allowActions={allowActions}
+        >
+          {rendered}
+        </CellAction>
+      );
+    };
+  };
 
-  renderHeader(tableData: TableData | null) {
-    const {location, eventView, organization} = this.props;
+  renderHeadCell = (tableMeta: TableData['meta']) => {
+    const {eventView, location} = this.props;
 
-    const tableDataMeta = tableData && tableData.meta ? tableData.meta : undefined;
+    return (column: TableColumn<keyof TableDataRow>, index: number): React.ReactNode => {
+      return (
+        <HeaderCell column={column} tableMeta={tableMeta}>
+          {({align}) => {
+            const field = {field: column.name, width: column.width};
 
-    return eventView.getColumns().map((column, index) => (
-      <HeaderCell column={column} tableData={tableData} key={index}>
-        {({align}) => {
-          const field = eventView.fields[index];
+            function generateSortLink(): LocationDescriptorObject | undefined {
+              if (!tableMeta) {
+                return undefined;
+              }
 
-          function generateSortLink(): LocationDescriptorObject | undefined {
-            if (!tableDataMeta) {
-              return undefined;
+              const nextEventView = eventView.sortOnField(field, tableMeta);
+              const queryStringObject = nextEventView.generateQueryStringObject();
+
+              return {
+                ...location,
+                query: {...location.query, sort: queryStringObject.sort},
+              };
             }
+            const currentSort = eventView.sortForField(field, tableMeta);
+            const canSort = isFieldSortable(field, tableMeta);
 
-            const nextEventView = eventView.sortOnField(field, tableDataMeta);
-            const queryStringObject = nextEventView.generateQueryStringObject();
-
-            const omitKeys = ['widths', 'query', 'name', 'field'];
-
-            return {
-              ...location,
-              query: omit(queryStringObject, omitKeys),
-            };
-          }
-
-          function handleClick() {
-            trackAnalyticsEvent({
-              eventKey: 'performance_views.overview.sort',
-              eventName: 'Performance Views: Sort Overview',
-              organization_id: parseInt(organization.id, 10),
-              field: field.field,
-            });
-          }
-
-          return (
-            <GridHeadCell>
+            return (
               <SortLink
                 align={align}
-                field={field}
-                eventView={eventView}
-                tableDataMeta={tableDataMeta}
+                title={COLUMN_TITLES[index] || field.field}
+                direction={currentSort ? currentSort.kind : undefined}
+                canSort={canSort}
                 generateSortLink={generateSortLink}
-                onClick={handleClick}
               />
-            </GridHeadCell>
-          );
-        }}
-      </HeaderCell>
-    ));
-  }
-
-  getTransactionSearchQuery(): string {
-    const {location} = this.props;
-
-    return String(decodeScalar(location.query.query) || '').trim();
-  }
+            );
+          }}
+        </HeaderCell>
+      );
+    };
+  };
 
   handleSummaryClick = () => {
     const {organization} = this.props;
@@ -189,67 +256,56 @@ class Table extends React.Component<Props> {
     });
   };
 
-  handleTransactionSearchQuery = (searchQuery: string) => {
-    const {location, organization} = this.props;
-
-    trackAnalyticsEvent({
-      eventKey: 'performance_views.overview.search',
-      eventName: 'Performance Views: Transaction overview search',
-      organization_id: parseInt(organization.id, 10),
-    });
-
-    browserHistory.push({
-      pathname: location.pathname,
-      query: {
-        ...location.query,
-        cursor: undefined,
-        query: String(searchQuery).trim() || undefined,
-      },
-    });
+  handleResizeColumn = (columnIndex: number, nextColumn: GridColumn) => {
+    const widths: number[] = [...this.state.widths];
+    widths[columnIndex] = nextColumn.width
+      ? Number(nextColumn.width)
+      : COL_WIDTH_UNDEFINED;
+    this.setState({widths});
   };
 
   render() {
     const {eventView, organization, location, keyTransactions} = this.props;
+    const {widths} = this.state;
+    const columnOrder = eventView
+      .getColumns()
+      .map((col: TableColumn<React.ReactText>, i: number) => {
+        if (typeof widths[i] === 'number') {
+          return {...col, width: widths[i]};
+        }
+        return col;
+      });
 
+    const columnSortBy = eventView.getSorts();
     return (
-      <DiscoverQuery
-        eventView={eventView}
-        orgSlug={organization.slug}
-        location={location}
-        keyTransactions={keyTransactions}
-      >
-        {({pageLinks, isLoading, tableData}) => (
-          <div>
-            <StyledSearchBar
-              query={this.getTransactionSearchQuery()}
-              placeholder={t('Filter Transactions')}
-              onSearch={this.handleTransactionSearchQuery}
-            />
-            <StyledPanelTable
-              headers={this.renderHeader(tableData)}
-              isLoading={isLoading}
-              isEmpty={!tableData || tableData.data.length === 0}
-              emptyMessage={t('No transactions found')}
-              disablePadding
-            >
-              {this.renderResults(isLoading, tableData)}
-            </StyledPanelTable>
-            <Pagination pageLinks={pageLinks} />
-          </div>
-        )}
-      </DiscoverQuery>
+      <div>
+        <DiscoverQuery
+          eventView={eventView}
+          orgSlug={organization.slug}
+          location={location}
+          keyTransactions={keyTransactions}
+        >
+          {({pageLinks, isLoading, tableData}) => (
+            <React.Fragment>
+              <GridEditable
+                isLoading={isLoading}
+                data={tableData ? tableData.data : []}
+                columnOrder={columnOrder}
+                columnSortBy={columnSortBy}
+                grid={{
+                  onResizeColumn: this.handleResizeColumn,
+                  renderHeadCell: this.renderHeadCell(tableData?.meta) as any,
+                  renderBodyCell: this.renderBodyCell(tableData) as any,
+                }}
+                location={location}
+              />
+              <Pagination pageLinks={pageLinks} />
+            </React.Fragment>
+          )}
+        </DiscoverQuery>
+      </div>
     );
   }
 }
 
-const StyledSearchBar = styled(SearchBar)`
-  flex-grow: 1;
-
-  margin-bottom: ${space(1)};
-`;
-
-const StyledPanelTable = styled(PanelTable)`
-  grid-template-columns: minmax(300px, auto) repeat(8, minmax(80px, 175px));
-`;
-
-export default withProjects(Table);
+export default Table;

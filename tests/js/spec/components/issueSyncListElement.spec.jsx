@@ -1,6 +1,7 @@
 import React from 'react';
 
 import {shallow, mount} from 'sentry-test/enzyme';
+
 import IssueSyncListElement from 'app/components/issueSyncListElement';
 
 describe('AlertLink', function() {
@@ -34,7 +35,7 @@ describe('AlertLink', function() {
     );
 
     expect(onClose).not.toHaveBeenCalled();
-    wrapper.find('OpenCloseIcon').simulate('click');
+    wrapper.find('StyledIcon').simulate('click');
     expect(onClose).toHaveBeenCalled();
   });
 });

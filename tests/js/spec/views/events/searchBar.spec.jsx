@@ -1,6 +1,7 @@
 import React from 'react';
 
 import {mountWithTheme} from 'sentry-test/enzyme';
+
 import SearchBar from 'app/views/events/searchBar';
 import TagStore from 'app/stores/tagStore';
 
@@ -77,7 +78,7 @@ describe('SearchBar', function() {
 
     expect(tagValuesMock).toHaveBeenCalledWith(
       '/organizations/org-slug/tags/gpu/values/',
-      expect.objectContaining({query: {project: [1, 2], statsPeriod: '14d'}})
+      expect.objectContaining({query: {project: ['1', '2'], statsPeriod: '14d'}})
     );
 
     await tick();
@@ -112,7 +113,7 @@ describe('SearchBar', function() {
 
     expect(tagValuesMock).toHaveBeenCalledWith(
       '/organizations/org-slug/tags/gpu/values/',
-      expect.objectContaining({query: {project: [1, 2], statsPeriod: '14d'}})
+      expect.objectContaining({query: {project: ['1', '2'], statsPeriod: '14d'}})
     );
 
     expect(wrapper.find('SearchDropdown').prop('searchSubstring')).toEqual('');
@@ -193,7 +194,7 @@ describe('SearchBar', function() {
 
     expect(tagValuesMock).toHaveBeenCalledWith(
       '/organizations/org-slug/tags/gpu/values/',
-      expect.objectContaining({query: {project: [1, 2], statsPeriod: '14d'}})
+      expect.objectContaining({query: {project: ['1', '2'], statsPeriod: '14d'}})
     );
     selectFirstAutocompleteItem(wrapper);
     expect(wrapper.find('input').prop('value')).toBe('!gpu:*"Nvidia 1080ti" ');

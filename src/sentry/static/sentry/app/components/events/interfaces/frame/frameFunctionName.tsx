@@ -2,11 +2,9 @@ import React from 'react';
 import PropTypes from 'prop-types';
 
 import {t} from 'app/locale';
-import {Meta} from 'app/types';
+import {Meta, Frame} from 'app/types';
 import {getMeta} from 'app/components/events/meta/metaProxy';
 import AnnotatedText from 'app/components/events/meta/annotatedText';
-
-import {Frame} from './types';
 
 type Props = {
   frame: Frame;
@@ -72,18 +70,7 @@ class FrameFunctionName extends React.Component<Props, State> {
       return valueOutput;
     }
 
-    if (!valueOutput.meta) {
-      return valueOutput.value;
-    }
-
-    return (
-      <AnnotatedText
-        value={valueOutput.value}
-        chunks={valueOutput.meta.chunks}
-        remarks={valueOutput.meta.rem}
-        errors={valueOutput.meta.err}
-      />
-    );
+    return <AnnotatedText value={valueOutput.value} meta={valueOutput.meta} />;
   }
 
   render() {

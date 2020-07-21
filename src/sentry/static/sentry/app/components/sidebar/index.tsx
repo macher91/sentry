@@ -5,7 +5,7 @@ import React from 'react';
 import Reflux from 'reflux';
 import createReactClass from 'create-react-class';
 import isEqual from 'lodash/isEqual';
-import queryString from 'query-string';
+import * as queryString from 'query-string';
 import styled from '@emotion/styled';
 
 import {
@@ -25,20 +25,17 @@ import {
   IconTelescope,
 } from 'app/icons';
 import {extractSelectionParameters} from 'app/components/organizations/globalSelectionHeader/utils';
-import {getDiscoverLandingUrl} from 'app/views/eventsV2/utils';
 import {hideSidebar, showSidebar} from 'app/actionCreators/preferences';
 import {t} from 'app/locale';
 import ConfigStore from 'app/stores/configStore';
 import Feature from 'app/components/acl/feature';
-import GuideAnchor from 'app/components/assistant/guideAnchor';
 import HookStore from 'app/stores/hookStore';
 import PreferencesStore from 'app/stores/preferencesStore';
-import localStorage from 'app/utils/localStorage';
+import {getDiscoverLandingUrl} from 'app/utils/discover/urls';
 import space from 'app/styles/space';
 import theme from 'app/utils/theme';
 import withOrganization from 'app/utils/withOrganization';
 import {Organization} from 'app/types';
-import {wantsLegacyReleases} from 'app/views/releasesV2/utils';
 
 import {getSidebarPanelContainer} from './sidebarPanel';
 import Broadcasts from './broadcasts';
@@ -195,6 +192,7 @@ class Sidebar extends React.Component<Props, State> {
       'releases',
       'user-feedback',
       'discover',
+      'discover/results', // Team plans do not have query landing page
       'performance',
       'releasesv2',
     ].map(route => `/organizations/${this.props.organization.slug}/${route}/`);
@@ -268,19 +266,10 @@ class Sidebar extends React.Component<Props, State> {
     if (!organization || !organization.features) {
       return sidebarState;
     }
-    const optState = localStorage.getItem('discover:version');
     const features = organization.features;
 
     if (features.includes('discover-basic')) {
-      // If there is no opt-out state show discover2
-      if (!optState || optState === '2') {
-        sidebarState.discover2 = true;
-      }
-      // User wants discover1
-      if (optState === '1') {
-        sidebarState.discover1 = true;
-        sidebarState.events = true;
-      }
+      sidebarState.discover2 = true;
       return sidebarState;
     }
 
@@ -300,20 +289,6 @@ class Sidebar extends React.Component<Props, State> {
     }
 
     return sidebarState;
-  }
-
-  /**
-   * Determine which version of releases to show
-   */
-  shouldShowNewReleases() {
-    const {organization} = this.props;
-
-    // Bail as we can't do any more checks.
-    if (!organization || !organization.features) {
-      return false;
-    }
-
-    return organization.features.includes('releases-v2') && !wantsLegacyReleases();
   }
 
   render() {
@@ -398,24 +373,26 @@ class Sidebar extends React.Component<Props, State> {
                       features={['discover-basic']}
                       organization={organization}
                     >
-                      <GuideAnchor position="right" target="discover_sidebar">
-                        <SidebarItem
-                          {...sidebarItemProps}
-                          onClick={(_id, evt) =>
-                            this.navigateWithGlobalSelection(
-                              getDiscoverLandingUrl(organization),
-                              evt
-                            )
-                          }
-                          icon={<IconTelescope size="md" />}
-                          label={t('Discover')}
-                          to={getDiscoverLandingUrl(organization)}
-                          id="discover-v2"
-                        />
-                      </GuideAnchor>
+                      <SidebarItem
+                        {...sidebarItemProps}
+                        onClick={(_id, evt) =>
+                          this.navigateWithGlobalSelection(
+                            getDiscoverLandingUrl(organization),
+                            evt
+                          )
+                        }
+                        icon={<IconTelescope size="md" />}
+                        label={t('Discover')}
+                        to={getDiscoverLandingUrl(organization)}
+                        id="discover-v2"
+                      />
                     </Feature>
                   )}
-                  <Feature features={['performance-view']} organization={organization}>
+                  <Feature
+                    hookName="feature-disabled:performance-sidebar-item"
+                    features={['performance-view']}
+                    organization={organization}
+                  >
                     <SidebarItem
                       {...sidebarItemProps}
                       onClick={(_id, evt) =>
@@ -430,7 +407,11 @@ class Sidebar extends React.Component<Props, State> {
                       id="performance"
                     />
                   </Feature>
-                  <Feature features={['incidents']} organization={organization}>
+                  <Feature
+                    hookName="feature-disabled:incidents-sidebar-item"
+                    features={['incidents']}
+                    organization={organization}
+                  >
                     <SidebarItem
                       {...sidebarItemProps}
                       onClick={(_id, evt) =>
@@ -458,7 +439,7 @@ class Sidebar extends React.Component<Props, State> {
                     label={t('Releases')}
                     to={`/organizations/${organization.slug}/releases/`}
                     id="releases"
-                    isBeta={this.shouldShowNewReleases()}
+                    isNew
                   />
                   <SidebarItem
                     {...sidebarItemProps}
@@ -476,7 +457,11 @@ class Sidebar extends React.Component<Props, State> {
                 </SidebarSection>
 
                 <SidebarSection>
-                  <Feature features={['discover']} organization={organization}>
+                  <Feature
+                    features={['discover', 'discover-query']}
+                    organization={organization}
+                    requireAll={false}
+                  >
                     <SidebarItem
                       {...sidebarItemProps}
                       index
@@ -706,7 +691,7 @@ const PrimaryItems = styled('div')`
   flex-direction: column;
   -ms-overflow-style: -ms-autohiding-scrollbar;
   @media (max-height: 600px) and (min-width: ${p => p.theme.breakpoints[1]}) {
-    border-bottom: 1px solid ${p => p.theme.gray3};
+    border-bottom: 1px solid ${p => p.theme.gray600};
     padding-bottom: ${space(1)};
     box-shadow: rgba(0, 0, 0, 0.15) 0px -10px 10px inset;
     &::-webkit-scrollbar {
@@ -714,7 +699,7 @@ const PrimaryItems = styled('div')`
       width: 8px;
     }
     &::-webkit-scrollbar-thumb {
-      background: ${p => p.theme.gray3};
+      background: ${p => p.theme.gray600};
       border-radius: 8px;
     }
   }
@@ -723,7 +708,7 @@ const PrimaryItems = styled('div')`
     flex-direction: row;
     height: 100%;
     align-items: center;
-    border-right: 1px solid ${p => p.theme.gray3};
+    border-right: 1px solid ${p => p.theme.gray600};
     padding-right: ${space(1)};
     margin-right: ${space(0.5)};
     box-shadow: rgba(0, 0, 0, 0.15) -10px 0px 10px inset;

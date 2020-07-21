@@ -12,9 +12,9 @@ import Pills from 'app/components/pills';
 import Pill from 'app/components/pill';
 import {defined} from 'app/utils';
 
-import ThreadsSelector from './threadsSelector';
-import getThreadStacktrace from './getThreadStacktrace';
-import getThreadException from './getThreadException';
+import ThreadSelector from './threadSelector';
+import getThreadStacktrace from './threadSelector/getThreadStacktrace';
+import getThreadException from './threadSelector/getThreadException';
 
 function getIntendedStackView(thread, event) {
   const stacktrace = getThreadStacktrace(thread, event, false);
@@ -49,7 +49,9 @@ class Thread extends React.Component {
         <li className="frame missing-frame">
           <div className="title">
             <span className="informal">
-              {this.props.data.crashed ? 'Thread Crashed' : 'No or unknown stacktrace'}
+              {this.props.data.crashed
+                ? t('Thread Errored')
+                : t('No or unknown stacktrace')}
             </span>
           </div>
         </li>
@@ -80,11 +82,11 @@ class Thread extends React.Component {
       <div className="thread">
         {renderPills && (
           <Pills>
-            <Pill name="id" value={data.id} />
-            <Pill name="name" value={data.name} />
-            <Pill name="was active" value={data.current} />
-            <Pill name="crashed" className={data.crashed ? 'false' : 'true'}>
-              {data.crashed ? 'yes' : 'no'}
+            <Pill name={t('id')} value={data.id} />
+            <Pill name={t('name')} value={data.name} />
+            <Pill name={t('was active')} value={data.current} />
+            <Pill name={t('errored')} className={data.crashed ? 'false' : 'true'}>
+              {data.crashed ? t('yes') : t('no')}
             </Pill>
           </Pills>
         )}
@@ -189,7 +191,7 @@ class ThreadsInterface extends React.Component {
         <CrashHeader
           title={null}
           beforeTitle={
-            <ThreadsSelector
+            <ThreadSelector
               threads={threads}
               activeThread={activeThread}
               event={this.props.event}
@@ -209,6 +211,7 @@ class ThreadsInterface extends React.Component {
         event={evt}
         type={this.props.type}
         title={title}
+        showPermalink={!threads.length > 1}
         wrapTitle={false}
       >
         <Thread

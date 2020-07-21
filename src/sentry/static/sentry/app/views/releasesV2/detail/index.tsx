@@ -4,7 +4,14 @@ import pick from 'lodash/pick';
 import styled from '@emotion/styled';
 
 import {t} from 'app/locale';
-import {Organization, Release, ReleaseProject, Deploy, GlobalSelection} from 'app/types';
+import {
+  Organization,
+  ReleaseProject,
+  ReleaseMeta,
+  Deploy,
+  GlobalSelection,
+  ReleaseWithHealth,
+} from 'app/types';
 import AsyncView from 'app/views/asyncView';
 import GlobalSelectionHeader from 'app/components/organizations/globalSelectionHeader';
 import LightWeightNoProjectMessage from 'app/components/lightWeightNoProjectMessage';
@@ -19,14 +26,16 @@ import LoadingIndicator from 'app/components/loadingIndicator';
 import {IconInfo, IconWarning} from 'app/icons';
 import space from 'app/styles/space';
 import Alert from 'app/components/alert';
+import {Body} from 'app/components/layouts/thirds';
 
 import ReleaseHeader from './releaseHeader';
 import PickProjectToContinue from './pickProjectToContinue';
 
 type ReleaseContext = {
-  release: Release;
-  project: ReleaseProject;
-  releaseProjects: ReleaseProject[];
+  release: ReleaseWithHealth;
+  project: Required<ReleaseProject>;
+  deploys: Deploy[];
+  releaseMeta: ReleaseMeta;
 };
 const ReleaseContext = React.createContext<ReleaseContext>({} as ReleaseContext);
 
@@ -38,11 +47,11 @@ type RouteParams = {
 type Props = RouteComponentProps<RouteParams, {}> & {
   organization: Organization;
   selection: GlobalSelection;
-  releaseProjects: ReleaseProject[];
+  releaseMeta: ReleaseMeta;
 };
 
 type State = {
-  release: Release;
+  release: ReleaseWithHealth;
   deploys: Deploy[];
 } & AsyncView['state'];
 
@@ -61,15 +70,15 @@ class ReleasesV2Detail extends AsyncView<Props, State> {
   getDefaultState() {
     return {
       ...super.getDefaultState(),
+      deploys: [],
     };
   }
 
-  getEndpoints(): ReturnType<AsyncView['getEndpoints']> {
-    const {organization, location, params} = this.props;
+  getEndpoints() {
+    const {organization, location, params, releaseMeta} = this.props;
 
     const query = {
       ...pick(location.query, [...Object.values(URL_PARAM)]),
-      // TODO(releasesV2): summaryStatsPeriod + healthStatsPeriod?
       health: 1,
     };
 
@@ -77,10 +86,15 @@ class ReleasesV2Detail extends AsyncView<Props, State> {
       params.release
     )}/`;
 
-    return [
+    const endpoints: ReturnType<AsyncView['getEndpoints']> = [
       ['release', basePath, {query}],
-      ['deploys', `${basePath}deploys/`],
     ];
+
+    if (releaseMeta.deployCount > 0) {
+      endpoints.push(['deploys', `${basePath}deploys/`]);
+    }
+
+    return endpoints;
   }
 
   renderError(...args) {
@@ -101,8 +115,16 @@ class ReleasesV2Detail extends AsyncView<Props, State> {
     return super.renderError(...args);
   }
 
+  renderLoading() {
+    return (
+      <PageContent>
+        <LoadingIndicator />
+      </PageContent>
+    );
+  }
+
   renderBody() {
-    const {organization, location, selection, releaseProjects} = this.props;
+    const {organization, location, selection, releaseMeta} = this.props;
     const {release, deploys, reloading} = this.state;
     const project = release?.projects.find(p => p.id === selection.projects[0]);
 
@@ -121,22 +143,21 @@ class ReleasesV2Detail extends AsyncView<Props, State> {
             location={location}
             orgId={organization.slug}
             release={release}
-            deploys={deploys || []}
             project={project}
+            releaseMeta={releaseMeta}
           />
-
-          <ContentBox>
-            <ReleaseContext.Provider value={{release, project, releaseProjects}}>
+          <Body>
+            <ReleaseContext.Provider value={{release, project, deploys, releaseMeta}}>
               {this.props.children}
             </ReleaseContext.Provider>
-          </ContentBox>
+          </Body>
         </StyledPageContent>
       </LightWeightNoProjectMessage>
     );
   }
 }
 
-class ReleasesV2DetailContainer extends AsyncComponent<Omit<Props, 'releaseProjects'>> {
+class ReleasesV2DetailContainer extends AsyncComponent<Omit<Props, 'releaseMeta'>> {
   shouldReload = true;
 
   getEndpoints(): ReturnType<AsyncView['getEndpoints']> {
@@ -144,10 +165,10 @@ class ReleasesV2DetailContainer extends AsyncComponent<Omit<Props, 'releaseProje
     // fetch projects this release belongs to
     return [
       [
-        'release',
+        'releaseMeta',
         `/organizations/${organization.slug}/releases/${encodeURIComponent(
           params.release
-        )}/`,
+        )}/meta/`,
       ],
     ];
   }
@@ -175,6 +196,14 @@ class ReleasesV2DetailContainer extends AsyncComponent<Omit<Props, 'releaseProje
     return !projectId || typeof projectId !== 'string';
   }
 
+  renderLoading() {
+    return (
+      <PageContent>
+        <LoadingIndicator />
+      </PageContent>
+    );
+  }
+
   renderProjectsFooterMessage() {
     return (
       <ProjectsFooterMessage>
@@ -185,7 +214,8 @@ class ReleasesV2DetailContainer extends AsyncComponent<Omit<Props, 'releaseProje
 
   renderBody() {
     const {organization, params, router} = this.props;
-    const {projects} = this.state.release;
+    const {releaseMeta} = this.state;
+    const {projects} = releaseMeta;
 
     if (this.isProjectMissingInUrl()) {
       return (
@@ -208,7 +238,7 @@ class ReleasesV2DetailContainer extends AsyncComponent<Omit<Props, 'releaseProje
         showProjectSettingsLink
         projectsFooterMessage={this.renderProjectsFooterMessage()}
       >
-        <ReleasesV2Detail {...this.props} releaseProjects={projects} />
+        <ReleasesV2Detail {...this.props} releaseMeta={releaseMeta} />
       </GlobalSelectionHeader>
     );
   }
@@ -223,12 +253,6 @@ const ProjectsFooterMessage = styled('div')`
   align-items: center;
   grid-template-columns: min-content 1fr;
   grid-gap: ${space(1)};
-`;
-
-const ContentBox = styled('div')`
-  padding: ${space(4)};
-  flex: 1;
-  background-color: white;
 `;
 
 export {ReleasesV2DetailContainer, ReleaseContext};

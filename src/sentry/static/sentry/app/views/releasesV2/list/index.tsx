@@ -7,19 +7,17 @@ import {forceCheck} from 'react-lazyload';
 import {t} from 'app/locale';
 import space from 'app/styles/space';
 import AsyncView from 'app/views/asyncView';
-import FeatureBadge from 'app/components/featureBadge';
-import {Organization, Release} from 'app/types';
+import {Organization, Release, GlobalSelection} from 'app/types';
 import routeTitleGen from 'app/utils/routeTitle';
 import SearchBar from 'app/components/searchBar';
 import Pagination from 'app/components/pagination';
 import PageHeading from 'app/components/pageHeading';
 import withOrganization from 'app/utils/withOrganization';
+import withGlobalSelection from 'app/utils/withGlobalSelection';
 import LoadingIndicator from 'app/components/loadingIndicator';
 import LightWeightNoProjectMessage from 'app/components/lightWeightNoProjectMessage';
-import IntroBanner from 'app/views/releasesV2/list/introBanner';
 import {PageContent, PageHeader} from 'app/styles/organization';
 import EmptyStateWarning from 'app/components/emptyStateWarning';
-import ReleaseCard from 'app/views/releasesV2/list/releaseCard';
 import GlobalSelectionHeader from 'app/components/organizations/globalSelectionHeader';
 import {getRelativeSummary} from 'app/components/organizations/timeRangeSelector/utils';
 import {DEFAULT_STATS_PERIOD} from 'app/constants';
@@ -27,7 +25,9 @@ import {defined} from 'app/utils';
 
 import ReleaseListSortOptions from './releaseListSortOptions';
 import ReleasePromo from './releasePromo';
+import IntroBanner from './introBanner';
 import SwitchReleasesButton from '../utils/switchReleasesButton';
+import ReleaseCard from './releaseCard';
 
 type RouteParams = {
   orgId: string;
@@ -35,9 +35,13 @@ type RouteParams = {
 
 type Props = RouteComponentProps<RouteParams, {}> & {
   organization: Organization;
+  selection: GlobalSelection;
 };
 
-type State = {releases: Release[]} & AsyncView['state'];
+type State = {
+  releases: Release[];
+  loadingHealth: boolean;
+} & AsyncView['state'];
 
 class ReleasesList extends AsyncView<Props, State> {
   shouldReload = true;
@@ -46,15 +50,10 @@ class ReleasesList extends AsyncView<Props, State> {
     return routeTitleGen(t('Releases'), this.props.organization.slug, false);
   }
 
-  getDefaultState() {
-    return {
-      ...super.getDefaultState(),
-    };
-  }
-
-  getEndpoints(): [string, string, {}][] {
+  getEndpoints() {
     const {organization, location} = this.props;
-    const {statsPeriod, sort} = location.query;
+    const {statsPeriod} = location.query;
+    const sort = this.getSort();
 
     const query = {
       ...pick(location.query, [
@@ -67,15 +66,43 @@ class ReleasesList extends AsyncView<Props, State> {
         'healthStat',
       ]),
       summaryStatsPeriod: statsPeriod,
-      per_page: 50,
+      per_page: 25,
       health: 1,
-      flatten: !sort || sort === 'date' ? 0 : 1,
+      flatten: sort === 'date' ? 0 : 1,
     };
 
-    return [['releases', `/organizations/${organization.slug}/releases/`, {query}]];
+    const endpoints: ReturnType<AsyncView['getEndpoints']> = [
+      ['releasesWithHealth', `/organizations/${organization.slug}/releases/`, {query}],
+    ];
+
+    // when sorting by date we fetch releases without health and then fetch health lazily
+    if (sort === 'date') {
+      endpoints.push([
+        'releasesWithoutHealth',
+        `/organizations/${organization.slug}/releases/`,
+        {query: {...query, health: 0}},
+      ]);
+    }
+
+    return endpoints;
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  onRequestSuccess({stateKey, data, jqXHR}) {
+    const {remainingRequests} = this.state;
+
+    // make sure there's no withHealth/withoutHealth race condition and set proper loading state
+    if (stateKey === 'releasesWithHealth' || remainingRequests === 1) {
+      this.setState({
+        reloading: false,
+        loading: false,
+        loadingHealth: stateKey === 'releasesWithoutHealth',
+        releases: data,
+        releasesPageLinks: jqXHR?.getResponseHeader('Link'),
+      });
+    }
+  }
+
+  componentDidUpdate(prevProps: Props, prevState: State) {
     super.componentDidUpdate(prevProps, prevState);
 
     if (prevState.releases !== this.state.releases) {
@@ -174,14 +201,14 @@ class ReleasesList extends AsyncView<Props, State> {
   }
 
   renderInnerBody() {
-    const {location, organization} = this.props;
-    const {releases, reloading} = this.state;
+    const {location, selection, organization} = this.props;
+    const {releases, reloading, loadingHealth} = this.state;
 
     if (this.shouldShowLoadingIndicator()) {
       return <LoadingIndicator />;
     }
 
-    if (!releases.length) {
+    if (!releases?.length) {
       return this.renderEmptyMessage();
     }
 
@@ -190,14 +217,17 @@ class ReleasesList extends AsyncView<Props, State> {
         release={release}
         orgSlug={organization.slug}
         location={location}
+        selection={selection}
         reloading={reloading}
         key={`${release.version}-${release.projects[0].slug}`}
+        showHealthPlaceholders={loadingHealth}
       />
     ));
   }
 
   renderBody() {
     const {organization} = this.props;
+    const {releasesPageLinks} = this.state;
 
     return (
       <GlobalSelectionHeader
@@ -209,9 +239,7 @@ class ReleasesList extends AsyncView<Props, State> {
         <PageContent>
           <LightWeightNoProjectMessage organization={organization}>
             <StyledPageHeader>
-              <PageHeading>
-                {t('Releases')} <FeatureBadge type="beta" />
-              </PageHeading>
+              <PageHeading>{t('Releases')}</PageHeading>
               <SortAndFilterWrapper>
                 <ReleaseListSortOptions
                   selected={this.getSort()}
@@ -229,7 +257,7 @@ class ReleasesList extends AsyncView<Props, State> {
 
             {this.renderInnerBody()}
 
-            <Pagination pageLinks={this.state.releasesPageLinks} />
+            <Pagination pageLinks={releasesPageLinks} />
 
             {!this.shouldShowLoadingIndicator() && (
               <SwitchReleasesButton version="1" orgId={organization.id} />
@@ -261,5 +289,5 @@ const SortAndFilterWrapper = styled('div')`
   }
 `;
 
-export default withOrganization(ReleasesList);
+export default withOrganization(withGlobalSelection(ReleasesList));
 export {ReleasesList};

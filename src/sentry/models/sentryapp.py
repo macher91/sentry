@@ -100,7 +100,7 @@ class SentryApp(ParanoidModel, HasApiScopes):
     uuid = models.CharField(max_length=64, default=default_uuid)
 
     redirect_url = models.URLField(null=True)
-    webhook_url = models.URLField(null=True)
+    webhook_url = models.URLField(max_length=512, null=True)
     # does the application subscribe to `event.alert`,
     # meaning can it be used in alert rules as a {service} ?
     is_alertable = models.BooleanField(default=False)
@@ -132,6 +132,15 @@ class SentryApp(ParanoidModel, HasApiScopes):
 
         return cls.objects.filter(status=SentryAppStatus.PUBLISHED)
 
+    # this method checks if a user from a sentry app has permission to a specific project
+    # for now, only checks if app is installed on the org of the project
+    @classmethod
+    def check_project_permission_for_sentry_app_user(cls, user, project):
+        assert user.is_sentry_app
+        # if the user exists, so should the sentry_app
+        sentry_app = cls.objects.get(proxy_user=user)
+        return sentry_app.is_installed_on(project.organization)
+
     @property
     def is_published(self):
         return self.status == SentryAppStatus.PUBLISHED
@@ -157,7 +166,9 @@ class SentryApp(ParanoidModel, HasApiScopes):
         return super(SentryApp, self).save(*args, **kwargs)
 
     def is_installed_on(self, organization):
-        return SentryAppInstallation.objects.filter(organization=organization).exists()
+        return SentryAppInstallation.objects.filter(
+            organization=organization, sentry_app=self,
+        ).exists()
 
     def build_signature(self, body):
         secret = self.application.client_secret

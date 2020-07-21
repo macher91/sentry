@@ -231,7 +231,7 @@ class StackedBarChart extends React.Component {
             r="4"
             cx="50%"
             cy="50%"
-            fill={marker.fill || theme.gray2}
+            fill={marker.fill || theme.gray500}
             stroke="#fff"
             strokeWidth="2"
           >
@@ -426,7 +426,7 @@ const CircleSvg = styled('svg')`
   left: ${p => p.left}%;
 
   &:hover circle {
-    fill: ${p => p.theme.purple};
+    fill: ${p => p.theme.purple400};
   }
 `;
 

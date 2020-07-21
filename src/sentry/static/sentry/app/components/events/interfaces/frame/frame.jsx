@@ -16,7 +16,7 @@ import withSentryAppComponents from 'app/utils/withSentryAppComponents';
 import {DebugMetaActions} from 'app/stores/debugMetaStore';
 import {SymbolicatorStatus} from 'app/components/events/interfaces/types';
 import InlineSvg from 'app/components/inlineSvg';
-import {combineStatus} from 'app/components/events/interfaces/debugmeta';
+import {combineStatus} from 'app/components/events/interfaces/debugMeta/utils';
 import {IconRefresh, IconAdd, IconSubtract} from 'app/icons';
 import overflowEllipsis from 'app/styles/overflowEllipsis';
 
@@ -371,9 +371,9 @@ const RepeatedFrames = styled('div')`
   margin-left: ${space(1)};
   border-width: thin;
   border-style: solid;
-  border-color: ${p => p.theme.yellowOrangeDark};
-  color: ${p => p.theme.yellowOrangeDark};
-  background-color: ${p => p.theme.whiteDark};
+  border-color: ${p => p.theme.orange500};
+  color: ${p => p.theme.orange500};
+  background-color: ${p => p.theme.gray100};
   white-space: nowrap;
 `;
 

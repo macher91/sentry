@@ -75,9 +75,9 @@ const StyledBanner = styled(BannerContainer)`
 
   a {
     font-weight: bold;
-    color: ${p => p.theme.gray3};
+    color: ${p => p.theme.gray600};
     &:hover {
-      color: ${p => p.theme.gray4};
+      color: ${p => p.theme.gray700};
     }
   }
 
@@ -91,7 +91,7 @@ const StyledBanner = styled(BannerContainer)`
 `;
 
 const StyledIconWarning = styled(IconWarning)`
-  color: ${p => p.theme.red};
+  color: ${p => p.theme.red400};
 `;
 
 // TODO(theme) don't use a custom pink

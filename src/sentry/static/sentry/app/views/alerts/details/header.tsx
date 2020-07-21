@@ -7,7 +7,6 @@ import isPropValid from '@emotion/is-prop-valid';
 import {PageHeader} from 'app/styles/organization';
 import {t} from 'app/locale';
 import Count from 'app/components/count';
-import DropdownControl from 'app/components/dropdownControl';
 import Duration from 'app/components/duration';
 import LoadingError from 'app/components/loadingError';
 import MenuItem from 'app/components/menuItem';
@@ -17,9 +16,11 @@ import Projects from 'app/utils/projects';
 import SubscribeButton from 'app/components/subscribeButton';
 import getDynamicText from 'app/utils/getDynamicText';
 import space from 'app/styles/space';
-import theme from 'app/utils/theme';
 import {IconCheckmark} from 'app/icons';
 import Breadcrumbs from 'app/components/breadcrumbs';
+import {Dataset} from 'app/views/settings/incidentRules/types';
+import DropdownControl from 'app/components/dropdownControl';
+import {use24Hours} from 'app/utils/dates';
 
 import {Incident, IncidentStats} from '../types';
 import {isOpen} from '../utils';
@@ -40,23 +41,28 @@ export default class DetailsHeader extends React.Component<Props> {
     const {incident, onStatusChange} = this.props;
 
     const isIncidentOpen = incident && isOpen(incident);
-    const statusLabel = incident ? <Status incident={incident} /> : null;
+    const statusLabel = incident ? <StyledStatus incident={incident} /> : null;
 
-    return isIncidentOpen ? (
+    return (
       <DropdownControl
         data-test-id="status-dropdown"
         label={statusLabel}
-        menuWidth="200px"
         alignRight
-        buttonProps={{size: 'small', disabled: !incident}}
+        blendWithActor={false}
+        buttonProps={{
+          size: 'small',
+          disabled: !incident || !isIncidentOpen,
+          hideBottomBorder: false,
+        }}
       >
+        <StatusMenuItem isActive>
+          {incident && <Status disableIconColor incident={incident} />}
+        </StatusMenuItem>
         <StatusMenuItem onSelect={onStatusChange}>
-          <IconCheckmark isCircled color={theme.greenLight} />
-          {t('Resolve this incident')}
+          <IconCheckmark color="green400" />
+          {t('Resolved')}
         </StatusMenuItem>
       </DropdownControl>
-    ) : (
-      statusLabel
     );
   }
 
@@ -69,96 +75,132 @@ export default class DetailsHeader extends React.Component<Props> {
       onSubscriptionChange,
     } = this.props;
     const isIncidentReady = !!incident && !hasIncidentDetailsError;
-    const dateStarted = incident && moment(incident.dateStarted).format('LL');
+    // ex - Wed, May 27, 2020 11:09 AM
+    const dateFormat = use24Hours() ? 'ddd, MMM D, YYYY HH:mm' : 'llll';
+    const dateStarted =
+      incident && moment(new Date(incident.dateStarted)).format(dateFormat);
     const duration =
       incident &&
-      moment
-        .duration(
-          moment(incident.dateClosed || new Date()).diff(moment(incident.dateStarted))
-        )
-        .as('seconds');
+      moment(incident.dateClosed ? new Date(incident.dateClosed) : new Date()).diff(
+        moment(new Date(incident.dateStarted)),
+        'seconds'
+      );
+    const isErrorDataset = incident?.alertRule?.dataset === Dataset.ERRORS;
+    const environmentLabel = incident?.alertRule?.environment ?? t('All Environments');
 
     const project = incident && incident.projects && incident.projects[0];
 
     return (
       <Header>
-        <PageHeading>
+        <BreadCrumbBar>
           <AlertBreadcrumbs
             crumbs={[
               {label: t('Alerts'), to: `/organizations/${params.orgId}/alerts/`},
-              {label: dateStarted ?? t('Alert details')},
+              {label: incident && `#${incident.id}`},
             ]}
           />
-          <IncidentTitle data-test-id="incident-title" loading={!isIncidentReady}>
-            {incident && !hasIncidentDetailsError ? incident.title : 'Loading'}
-          </IncidentTitle>
-        </PageHeading>
+          <Controls>
+            <SubscribeButton
+              disabled={!isIncidentReady}
+              isSubscribed={incident?.isSubscribed}
+              onClick={onSubscriptionChange}
+              size="small"
+            />
+            {this.renderStatus()}
+          </Controls>
+        </BreadCrumbBar>
+        <Details columns={isErrorDataset ? 5 : 3}>
+          <div>
+            <IncidentTitle data-test-id="incident-title" loading={!isIncidentReady}>
+              {incident && !hasIncidentDetailsError ? incident.title : 'Loading'}
+            </IncidentTitle>
+            <IncidentSubTitle loading={!isIncidentReady}>
+              {t('Triggered: ')}
+              {dateStarted}
+            </IncidentSubTitle>
+          </div>
 
-        {hasIncidentDetailsError ? (
-          <StyledLoadingError />
-        ) : (
-          <GroupedHeaderItems>
-            <ItemTitle>{t('Status')}</ItemTitle>
-            <ItemTitle>{t('Project')}</ItemTitle>
-            <ItemTitle>{t('Users affected')}</ItemTitle>
-            <ItemTitle>{t('Total events')}</ItemTitle>
-            <ItemTitle>{t('Duration')}</ItemTitle>
-            <ItemTitle>{t('Notifications')}</ItemTitle>
-            <ItemValue>{this.renderStatus()}</ItemValue>
-            <ItemValue>
-              {project && (
-                <Projects slugs={[project]} orgId={params.orgId}>
-                  {({projects}) => (
-                    <ProjectBadge
-                      avatarSize={18}
-                      project={projects && projects.length && projects[0]}
-                    />
-                  )}
-                </Projects>
+          {hasIncidentDetailsError ? (
+            <StyledLoadingError />
+          ) : (
+            <GroupedHeaderItems columns={isErrorDataset ? 5 : 3}>
+              <ItemTitle>{t('Environment')}</ItemTitle>
+              <ItemTitle>{t('Project')}</ItemTitle>
+              {isErrorDataset && stats && <ItemTitle>{t('Users affected')}</ItemTitle>}
+              {isErrorDataset && stats && <ItemTitle>{t('Total events')}</ItemTitle>}
+              <ItemTitle>{t('Active For')}</ItemTitle>
+              <ItemValue>{environmentLabel}</ItemValue>
+              <ItemValue>
+                {project && (
+                  <Projects slugs={[project]} orgId={params.orgId}>
+                    {({projects}) =>
+                      projects?.length && (
+                        <ProjectBadge avatarSize={18} project={projects[0]} />
+                      )
+                    }
+                  </Projects>
+                )}
+              </ItemValue>
+              {isErrorDataset && stats && (
+                <ItemValue>
+                  <Count value={stats.uniqueUsers} />
+                </ItemValue>
               )}
-            </ItemValue>
-            {stats && (
-              <ItemValue>
-                <Count value={stats.uniqueUsers} />
-              </ItemValue>
-            )}
-            {stats && (
-              <ItemValue>
-                <Count value={stats.totalEvents} />
-              </ItemValue>
-            )}
-            {incident && (
-              <ItemValue>
-                <Duration seconds={getDynamicText({value: duration || 0, fixed: 1200})} />
-              </ItemValue>
-            )}
-            <ItemValue>
-              <SubscribeButton
-                disabled={!isIncidentReady}
-                isSubscribed={incident && !!incident.isSubscribed}
-                onClick={onSubscriptionChange}
-                size="small"
-              />
-            </ItemValue>
-          </GroupedHeaderItems>
-        )}
+              {isErrorDataset && stats && (
+                <ItemValue>
+                  <Count value={stats.totalEvents} />
+                </ItemValue>
+              )}
+              {incident && (
+                <ItemValue>
+                  <Duration
+                    seconds={getDynamicText({value: duration || 0, fixed: 1200})}
+                  />
+                </ItemValue>
+              )}
+            </GroupedHeaderItems>
+          )}
+        </Details>
       </Header>
     );
   }
 }
 
-const Header = styled(PageHeader)`
-  background-color: ${p => p.theme.white};
+const Header = styled('div')`
+  background-color: ${p => p.theme.gray100};
   border-bottom: 1px solid ${p => p.theme.borderDark};
+`;
+
+const BreadCrumbBar = styled('div')`
+  display: flex;
   margin-bottom: 0;
-  padding: ${space(3)};
+  padding: ${space(2)} ${space(4)} ${space(1)};
+`;
+
+const AlertBreadcrumbs = styled(Breadcrumbs)`
+  flex-grow: 1;
+  font-size: ${p => p.theme.fontSizeExtraLarge};
+  padding: 0;
+`;
+
+const Controls = styled('div')`
+  display: grid;
+  grid-auto-flow: column;
+  grid-gap: ${space(1)};
+`;
+
+const Details = styled(PageHeader, {
+  shouldForwardProp: p => isPropValid(p) && p !== 'columns',
+})<{columns: 3 | 5}>`
+  margin-bottom: 0;
+  padding: ${space(1.5)} ${space(4)} ${space(2)};
 
   grid-template-columns: max-content auto;
   display: grid;
   grid-gap: ${space(3)};
   grid-auto-flow: column;
 
-  @media (max-width: ${p => p.theme.breakpoints[1]}) {
+  @media (max-width: ${p => p.theme.breakpoints[p.columns === 3 ? 1 : 2]}) {
     grid-template-columns: auto;
     grid-auto-flow: row;
   }
@@ -172,13 +214,16 @@ const StyledLoadingError = styled(LoadingError)`
   }
 `;
 
-const GroupedHeaderItems = styled('div')`
+const GroupedHeaderItems = styled('div', {
+  shouldForwardProp: p => isPropValid(p) && p !== 'columns',
+})<{columns: 3 | 5}>`
   display: grid;
-  grid-template-columns: repeat(6, max-content);
+  grid-template-columns: repeat(${p => p.columns}, max-content);
   grid-gap: ${space(1)} ${space(4)};
   text-align: right;
+  margin-top: ${space(1)};
 
-  @media (max-width: ${p => p.theme.breakpoints[1]}) {
+  @media (max-width: ${p => p.theme.breakpoints[p.columns === 3 ? 1 : 2]}) {
     text-align: left;
   }
 `;
@@ -187,7 +232,7 @@ const ItemTitle = styled('h6')`
   font-size: ${p => p.theme.fontSizeSmall};
   margin-bottom: 0;
   text-transform: uppercase;
-  color: ${p => p.theme.gray2};
+  color: ${p => p.theme.gray500};
   letter-spacing: 0.1px;
 `;
 
@@ -198,25 +243,35 @@ const ItemValue = styled('div')`
   font-size: ${p => p.theme.fontSizeExtraLarge};
 `;
 
-const AlertBreadcrumbs = styled(Breadcrumbs)`
-  font-size: ${p => p.theme.fontSizeLarge};
-  padding: 0;
-  margin-bottom: ${space(1)};
-`;
-
-const IncidentTitle = styled('div', {
+const IncidentTitle = styled(PageHeading, {
   shouldForwardProp: p => isPropValid(p) && p !== 'loading',
 })<{loading: boolean}>`
   ${p => p.loading && 'opacity: 0'};
+  line-height: 1.5;
+`;
+
+const IncidentSubTitle = styled('div', {
+  shouldForwardProp: p => isPropValid(p) && p !== 'loading',
+})<{loading: boolean}>`
+  ${p => p.loading && 'opacity: 0'};
+  font-size: ${p => p.theme.fontSizeLarge};
+  color: ${p => p.theme.gray500};
+`;
+
+const StyledStatus = styled(Status)`
+  margin-right: ${space(2)};
 `;
 
 const StatusMenuItem = styled(MenuItem)`
   > span {
-    font-size: ${p => p.theme.fontSizeMedium};
+    padding: ${space(1)} ${space(1.5)};
+    font-size: ${p => p.theme.fontSizeSmall};
+    font-weight: 600;
+    line-height: 1;
     text-align: left;
     display: grid;
     grid-template-columns: max-content 1fr;
-    grid-gap: ${space(1)};
+    grid-gap: ${space(0.75)};
     align-items: center;
   }
 `;

@@ -6,6 +6,8 @@ import six
 
 from sentry.api.serializers import register, serialize, Serializer
 from sentry.incidents.models import AlertRule, AlertRuleExcludedProjects, AlertRuleTrigger
+from sentry.incidents.logic import translate_aggregate_field
+
 from sentry.models import Rule
 from sentry.utils.compat import zip
 from sentry.utils.db import attach_foreignkey
@@ -30,6 +32,10 @@ class AlertRuleSerializer(Serializer):
 
     def serialize(self, obj, attrs, user):
         env = obj.snuba_query.environment
+        # Temporary: Translate aggregate back here from `tags[sentry:user]` to `user` for the frontend.
+
+        aggregate = translate_aggregate_field(obj.snuba_query.aggregate, reverse=True)
+
         return {
             "id": six.text_type(obj.id),
             "name": obj.name,
@@ -37,11 +43,9 @@ class AlertRuleSerializer(Serializer):
             "status": obj.status,
             "dataset": obj.snuba_query.dataset,
             "query": obj.snuba_query.query,
-            "aggregate": obj.snuba_query.aggregate,
-            # These fields are deprecated. Once we've moved over to using aggregate
-            # entirely we can remove
-            "aggregation": obj.aggregation,
-            "aggregations": [obj.aggregation],
+            "aggregate": aggregate,
+            "thresholdType": obj.threshold_type,
+            "resolveThreshold": obj.resolve_threshold,
             # TODO: Start having the frontend expect seconds
             "timeWindow": obj.snuba_query.time_window / 60,
             "environment": env.name if env else None,
@@ -60,7 +64,7 @@ class DetailedAlertRuleSerializer(AlertRuleSerializer):
         result = super(DetailedAlertRuleSerializer, self).get_attrs(item_list, user, **kwargs)
         alert_rule_projects = AlertRule.objects.filter(
             id__in=[item.id for item in item_list]
-        ).values_list("id", "query_subscriptions__project__slug")
+        ).values_list("id", "snuba_query__subscriptions__project__slug")
         alert_rules = {item.id: item for item in item_list}
         for alert_rule_id, project_slug in alert_rule_projects:
             rule_result = result[alert_rules[alert_rule_id]].setdefault("projects", [])

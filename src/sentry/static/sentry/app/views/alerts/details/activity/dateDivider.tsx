@@ -7,7 +7,7 @@ const DateDivider = styled('div')`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${p => p.theme.gray3};
+  color: ${p => p.theme.gray600};
   margin: ${space(1.5)} 0;
 
   &:before,
@@ -16,7 +16,7 @@ const DateDivider = styled('div')`
     display: block;
     flex-grow: 1;
     height: 1px;
-    background-color: ${p => p.theme.borderLight};
+    background-color: ${p => p.theme.gray300};
   }
 
   &:before {

@@ -3,11 +3,12 @@ import styled from '@emotion/styled';
 
 import InlineSvg from 'app/components/inlineSvg';
 import {Theme} from 'app/utils/theme';
+import space from 'app/styles/space';
 
 type Props = React.HTMLAttributes<HTMLDivElement> & {
   priority?: keyof Theme['badge'] | keyof Theme['alert'];
   size?: string;
-  icon?: string;
+  icon?: string | React.ReactNode;
   border?: boolean;
   inline?: boolean;
 };
@@ -29,7 +30,7 @@ const getMarginLeft = (p: StyleFuncProps) =>
   p.inline ? `margin-left: ${p.size === 'small' ? '0.25em' : '0.5em'};` : '';
 
 const getBorder = (p: StyleFuncProps) =>
-  p.border ? `border: 1px solid ${getPriority(p)?.border ?? p.theme.gray1};` : '';
+  p.border ? `border: 1px solid ${getPriority(p)?.border ?? p.theme.borderDark};` : '';
 
 const Tag = styled(
   ({
@@ -42,7 +43,15 @@ const Tag = styled(
     ...props
   }: Props) => (
     <div {...props}>
-      {icon && <StyledInlineSvg src={icon} size="12px" />}
+      {icon && (
+        <IconWrapper>
+          {React.isValidElement(icon) ? (
+            React.cloneElement(icon, {size: 'xs'})
+          ) : typeof icon === 'string' ? (
+            <InlineSvg src={icon} size="12px" />
+          ) : null}
+        </IconWrapper>
+      )}
       {children}
     </div>
   )
@@ -52,20 +61,21 @@ const Tag = styled(
   padding: ${p => (p.size === 'small' ? '0.1em 0.4em 0.2em' : '0.35em 0.8em 0.4em')};
   font-size: ${p => p.theme.fontSizeExtraSmall};
   line-height: 1;
-  color: ${p => (p.priority ? '#fff' : p.theme.gray5)};
+  color: ${p => (p.priority ? '#fff' : p.theme.gray800)};
   text-align: center;
   white-space: nowrap;
   vertical-align: middle;
+  align-items: center;
   border-radius: ${p => (p.size === 'small' ? '0.25em' : '2em')};
   text-transform: lowercase;
   font-weight: ${p => (p.size === 'small' ? 'bold' : 'normal')};
-  background: ${p => getPriority(p)?.background ?? p.theme.offWhite2};
+  background: ${p => getPriority(p)?.background ?? p.theme.gray300};
   ${p => getBorder(p)};
   ${p => getMarginLeft(p)};
 `;
 
-const StyledInlineSvg = styled(InlineSvg)`
-  margin-right: 4px;
+const IconWrapper = styled('span')`
+  margin-right: ${space(0.5)};
 `;
 
 export default Tag;

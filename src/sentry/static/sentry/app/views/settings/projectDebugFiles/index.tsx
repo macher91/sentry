@@ -17,6 +17,7 @@ import {Organization, Project} from 'app/types';
 import routeTitleGen from 'app/utils/routeTitle';
 import Checkbox from 'app/components/checkbox';
 import SearchBar from 'app/components/searchBar';
+import ProjectActions from 'app/actions/projectActions';
 
 import {DebugFile, BuiltinSymbolSource} from './types';
 import DebugFileRow from './debugFileRow';
@@ -55,7 +56,14 @@ class ProjectDebugSymbols extends AsyncView<Props, State> {
       [
         'debugFiles',
         `/projects/${orgId}/${projectId}/files/dsyms/`,
-        {query: {query: location.query.query}},
+        {
+          query: {
+            query: location.query.query,
+            file_formats: organization.features.includes('android-mappings')
+              ? ['breakpad', 'macho', 'elf', 'pe', 'pdb', 'sourcebundle']
+              : undefined,
+          },
+        },
       ],
     ];
 
@@ -168,6 +176,8 @@ class ProjectDebugSymbols extends AsyncView<Props, State> {
               initialData={project}
               apiMethod="PUT"
               apiEndpoint={`/projects/${orgId}/${projectId}/`}
+              onSubmitSuccess={ProjectActions.updateSuccess}
+              key={project.builtinSymbolSources?.join() || project.id}
             >
               <JsonForm
                 features={new Set(features)}
@@ -205,8 +215,8 @@ class ProjectDebugSymbols extends AsyncView<Props, State> {
         <StyledPanelTable
           headers={[
             t('Debug ID'),
-            t('Name'),
-            <TextRight key="actions">{t('Actions')}</TextRight>,
+            t('Information'),
+            <Actions key="actions">{t('Actions')}</Actions>,
           ]}
           emptyMessage={this.getEmptyMessage()}
           isEmpty={debugFiles?.length === 0}
@@ -224,7 +234,7 @@ const StyledPanelTable = styled(PanelTable)`
   grid-template-columns: 37% 1fr auto;
 `;
 
-const TextRight = styled('div')`
+const Actions = styled('div')`
   text-align: right;
 `;
 

@@ -33,8 +33,7 @@ class AlertRuleDetailsBase(object):
     @fixture
     def alert_rule_dict(self):
         return {
-            "aggregation": 0,
-            "aggregations": [0],
+            "aggregate": "count()",
             "query": "",
             "timeWindow": "300",
             "projects": [self.project.slug],
@@ -74,7 +73,7 @@ class AlertRuleDetailsBase(object):
             data=data,
         )
 
-        assert serializer.is_valid()
+        assert serializer.is_valid(), serializer.errors
         alert_rule = serializer.save()
         return alert_rule
 
@@ -175,13 +174,13 @@ class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
                 self.organization.slug, alert_rule.id, **serialized_alert_rule
             )
 
-        existing_sub = self.alert_rule.query_subscriptions.first()
+        existing_sub = self.alert_rule.snuba_query.subscriptions.first()
 
         # Alert rule should be exactly the same
         assert resp.data == serialize(self.alert_rule)
-        # If the aggregation changed we'd have a new subscription, validate that
+        # If the aggregate changed we'd have a new subscription, validate that
         # it hasn't changed explicitly
-        updated_sub = AlertRule.objects.get(id=self.alert_rule.id).query_subscriptions.first()
+        updated_sub = AlertRule.objects.get(id=self.alert_rule.id).snuba_query.subscriptions.first()
         assert updated_sub.subscription_id == existing_sub.subscription_id
 
     def test_update_trigger_label_to_unallowed_value(self):
@@ -237,9 +236,11 @@ class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
 
         self.login_as(self.user)
         alert_rule = self.alert_rule
+        alert_rule.update(resolve_threshold=75)
         # We need the IDs to force update instead of create, so we just get the rule using our own API. Like frontend would.
         serialized_alert_rule = self.get_serialized_alert_rule()
 
+        serialized_alert_rule["resolveThreshold"] = None
         serialized_alert_rule["triggers"][1]["resolveThreshold"] = None
         serialized_alert_rule["name"] = "AUniqueName"
 
@@ -259,6 +260,7 @@ class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
 
         self.login_as(self.user)
         alert_rule = self.alert_rule
+        alert_rule.update(resolve_threshold=75)
         # We need the IDs to force update instead of create, so we just get the rule using our own API. Like frontend would.
         serialized_alert_rule = self.get_serialized_alert_rule()
 
@@ -310,12 +312,15 @@ class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
 
         assert len(resp.data["triggers"][1]["actions"]) == 1
 
-        # Delete the last one, make sure API errors since we have to have an action.
+        # Delete the last one.
         serialized_alert_rule["triggers"][1]["actions"].pop()
 
         with self.feature("organizations:incidents"):
-            resp = self.get_response(self.organization.slug, alert_rule.id, **serialized_alert_rule)
-            assert resp.status_code == 400
+            resp = self.get_valid_response(
+                self.organization.slug, alert_rule.id, **serialized_alert_rule
+            )
+
+        assert len(resp.data["triggers"][1]["actions"]) == 0
 
     def test_update_trigger_action_type(self):
         self.create_member(
@@ -359,6 +364,7 @@ class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
         serialized_alert_rule = self.get_serialized_alert_rule()
 
         serialized_alert_rule["triggers"][0]["alertThreshold"] = 50  # Invalid
+        serialized_alert_rule.pop("resolveThreshold")
         with self.feature("organizations:incidents"):
             self.get_valid_response(
                 self.organization.slug, alert_rule.id, status_code=400, **serialized_alert_rule
@@ -374,6 +380,7 @@ class AlertRuleDetailsPutEndpointTest(AlertRuleDetailsBase, APITestCase):
             )
         serialized_alert_rule["triggers"][0]["resolveThreshold"] = 100  # Back to normal, valid.
 
+        serialized_alert_rule.pop("thresholdType")
         serialized_alert_rule["triggers"][0][
             "thresholdType"
         ] = 1  # Invalid, different than other trigger.

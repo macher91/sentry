@@ -6,6 +6,7 @@ import {css} from '@emotion/core';
 import {t} from 'app/locale';
 import {callIfFunction} from 'app/utils/callIfFunction';
 import {DataSection} from 'app/components/events/styles';
+import {IconAnchor} from 'app/icons/iconAnchor';
 import Button from 'app/components/button';
 import ButtonBar from 'app/components/buttonBar';
 import space from 'app/styles/space';
@@ -14,6 +15,7 @@ const defaultProps = {
   wrapTitle: true,
   raw: false,
   isCentered: false,
+  showPermalink: true,
 };
 
 type DefaultProps = Readonly<typeof defaultProps>;
@@ -69,6 +71,7 @@ class EventDataSection extends React.Component<Props> {
       wrapTitle,
       actions,
       isCentered,
+      showPermalink,
     } = this.props;
 
     const titleNode = wrapTitle ? <h3>{title}</h3> : title;
@@ -77,10 +80,14 @@ class EventDataSection extends React.Component<Props> {
       <DataSection className={className || ''}>
         {title && (
           <SectionHeader id={type} isCentered={isCentered}>
-            <Permalink href={'#' + type} className="permalink">
-              <em className="icon-anchor" />
-            </Permalink>
-            {titleNode}
+            {showPermalink ? (
+              <Permalink href={'#' + type} className="permalink">
+                <StyledIconAnchor />
+                {titleNode}
+              </Permalink>
+            ) : (
+              <div>{titleNode}</div>
+            )}
             {type === 'extra' && (
               <ButtonBar merged active={raw ? 'raw' : 'formatted'}>
                 <Button
@@ -108,21 +115,23 @@ class EventDataSection extends React.Component<Props> {
   }
 }
 
-const Permalink = styled('a')`
-  font-size: ${p => p.theme.fontSizeSmall};
-  line-height: 27px;
+const StyledIconAnchor = styled(IconAnchor)`
   display: none;
   position: absolute;
-  top: -1.5px;
+  top: 4px;
   left: -22px;
-  color: ${p => p.theme.gray6};
-  padding: ${space(0.25)} 5px;
+`;
+
+const Permalink = styled('a')`
+  :hover ${StyledIconAnchor} {
+    display: block;
+    color: ${p => p.theme.gray500};
+  }
 `;
 
 const SectionHeader = styled('div')<{isCentered?: boolean}>`
   display: flex;
-  justify-content: space-between;
-  position: relative;
+  align-items: center;
   margin-bottom: ${space(3)};
 
   & h3,
@@ -130,7 +139,7 @@ const SectionHeader = styled('div')<{isCentered?: boolean}>`
     font-size: 14px;
     font-weight: 600;
     line-height: 1.2;
-    color: ${p => p.theme.gray2};
+    color: ${p => p.theme.gray500};
   }
 
   & h3 {
@@ -143,7 +152,7 @@ const SectionHeader = styled('div')<{isCentered?: boolean}>`
   }
 
   & small {
-    color: ${p => p.theme.foreground};
+    color: ${p => p.theme.gray700};
     font-size: ${p => p.theme.fontSizeMedium};
     margin-right: ${space(0.5)};
     margin-left: ${space(0.5)};
@@ -151,13 +160,9 @@ const SectionHeader = styled('div')<{isCentered?: boolean}>`
     text-transform: none;
   }
   & small a {
-    color: ${p => p.theme.foreground};
-    border-bottom: 1px dotted ${p => p.theme.gray6};
+    color: ${p => p.theme.gray700};
+    border-bottom: 1px dotted ${p => p.theme.borderDark};
     font-weight: normal;
-  }
-
-  &:hover ${Permalink} {
-    display: block;
   }
 
   @media (min-width: ${props => props.theme.breakpoints[2]}) {
@@ -175,6 +180,11 @@ const SectionHeader = styled('div')<{isCentered?: boolean}>`
         display: block;
       }
     `}
+
+  >*:first-child {
+    position: relative;
+    flex-grow: 1;
+  }
 `;
 
 const SectionContents = styled('div')`

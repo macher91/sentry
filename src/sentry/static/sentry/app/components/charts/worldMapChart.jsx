@@ -6,6 +6,7 @@ import theme from 'app/utils/theme';
 
 import BaseChart from './baseChart';
 import MapSeries from './series/mapSeries';
+import VisualMap from './components/visualMap';
 
 export default class WorldMapChart extends React.Component {
   static propTypes = {
@@ -56,11 +57,11 @@ export default class WorldMapChart extends React.Component {
         center: [10.97, 9.71],
         itemStyle: {
           normal: {
-            areaColor: theme.gray1,
+            areaColor: theme.gray400,
             borderColor: theme.borderLighter,
           },
           emphasis: {
-            areaColor: theme.yellowOrange,
+            areaColor: theme.orange300,
           },
         },
         label: {
@@ -81,19 +82,19 @@ export default class WorldMapChart extends React.Component {
       <BaseChart
         options={{
           backgroundColor: theme.borderLighter,
-          visualMap: {
+          visualMap: VisualMap({
             left: 'right',
             min: 0,
             max: maxValue,
             inRange: {
-              color: [theme.purpleLightest, theme.purpleDarkest],
+              color: [theme.purple300, theme.purple500],
             },
             text: ['High', 'Low'],
 
             // Whether show handles, which can be dragged to adjust "selected range".
             // False because the handles are pretty ugly
             calculable: false,
-          },
+          }),
         }}
         {...props}
         yAxis={null}

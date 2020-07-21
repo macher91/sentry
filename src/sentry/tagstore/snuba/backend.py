@@ -2,13 +2,16 @@ from __future__ import absolute_import
 
 import functools
 import six
-from collections import defaultdict, Iterable
+from collections import defaultdict, Iterable, OrderedDict
 from dateutil.parser import parse as parse_datetime
 
 from django.core.cache import cache
 
 from sentry import options
+from sentry.api.event_search import PROJECT_ALIAS
+from sentry.models import Project
 from sentry.api.utils import default_start_end_dates
+from sentry.snuba.dataset import Dataset
 from sentry.tagstore import TagKeyStatus
 from sentry.tagstore.base import TagStorage, TOP_VALUES_DEFAULT_LIMIT
 from sentry.tagstore.exceptions import (
@@ -21,6 +24,7 @@ from sentry.tagstore.types import TagKey, TagValue, GroupTagKey, GroupTagValue
 from sentry.utils import snuba, metrics
 from sentry.utils.hashlib import md5_text
 from sentry.utils.dates import to_timestamp
+from sentry_relay.consts import SPAN_STATUS_CODE_TO_NAME
 
 
 SEEN_COLUMN = "timestamp"
@@ -672,15 +676,48 @@ class SnubaTagStorage(TagStorage):
         if not order_by == "-last_seen":
             raise ValueError("Unsupported order_by: %s" % order_by)
 
+        dataset = Dataset.Events
         snuba_key = snuba.get_snuba_column_name(key)
+        if snuba_key.startswith("tags["):
+            snuba_key = snuba.get_snuba_column_name(key, dataset=Dataset.Discover)
+            if not snuba_key.startswith("tags["):
+                dataset = Dataset.Discover
 
         conditions = []
 
-        if key in FUZZY_NUMERIC_KEYS:
+        # transaction status needs a special case so that the user interacts with the names and not codes
+        transaction_status = snuba_key == "transaction_status"
+        if transaction_status:
+            conditions.append(
+                [
+                    snuba_key,
+                    "IN",
+                    # Here we want to use the status codes during filtering,
+                    # but want to do this with names that include our query
+                    [
+                        span_key
+                        for span_key, value in six.iteritems(SPAN_STATUS_CODE_TO_NAME)
+                        if (query and query in value) or (not query)
+                    ],
+                ]
+            )
+        elif key in FUZZY_NUMERIC_KEYS:
             converted_query = int(query) if query is not None and query.isdigit() else None
             if converted_query is not None:
                 conditions.append([snuba_key, ">=", converted_query - FUZZY_NUMERIC_DISTANCE])
                 conditions.append([snuba_key, "<=", converted_query + FUZZY_NUMERIC_DISTANCE])
+        elif key == PROJECT_ALIAS:
+            project_filters = {
+                "id__in": projects,
+            }
+            if query:
+                project_filters["slug__icontains"] = query
+            project_queryset = Project.objects.filter(**project_filters).values("id", "slug")
+            project_slugs = {project["id"]: project["slug"] for project in project_queryset}
+            if project_queryset.exists():
+                projects = [project["id"] for project in project_queryset]
+                snuba_key = "project_id"
+                dataset = Dataset.Discover
         else:
             if snuba_key in BLACKLISTED_COLUMNS:
                 snuba_key = "tags[%s]" % (key,)
@@ -695,6 +732,7 @@ class SnubaTagStorage(TagStorage):
             filters["environment"] = environments
 
         results = snuba.query(
+            dataset=dataset,
             start=start,
             end=end,
             groupby=[snuba_key],
@@ -712,6 +750,20 @@ class SnubaTagStorage(TagStorage):
             referrer="tagstore.get_tag_value_paginator_for_projects",
         )
 
+        # With transaction_status we need to map the ids back to their names
+        if transaction_status:
+            results = OrderedDict(
+                [
+                    (SPAN_STATUS_CODE_TO_NAME[result_key], data)
+                    for result_key, data in six.iteritems(results)
+                ]
+            )
+        # With project names we map the ids back to the project slugs
+        elif key == PROJECT_ALIAS:
+            results = OrderedDict(
+                [(project_slugs[value], data) for value, data in six.iteritems(results)]
+            )
+
         tag_values = [
             TagValue(key=key, value=six.text_type(value), **fix_tag_value_data(data))
             for value, data in six.iteritems(results)
@@ -725,15 +777,15 @@ class SnubaTagStorage(TagStorage):
         )
 
     def get_group_tag_value_iter(
-        self, project_id, group_id, environment_id, key, callbacks=(), offset=0
+        self, project_id, group_id, environment_ids, key, callbacks=(), limit=1000, offset=0
     ):
         filters = {
             "project_id": get_project_list(project_id),
             "tags_key": [key],
             "group_id": [group_id],
         }
-        if environment_id:
-            filters["environment"] = [environment_id]
+        if environment_ids:
+            filters["environment"] = environment_ids
         results = snuba.query(
             groupby=["tags_value"],
             filter_keys=filters,
@@ -743,7 +795,7 @@ class SnubaTagStorage(TagStorage):
                 ["max", "timestamp", "last_seen"],
             ],
             orderby="-first_seen",  # Closest thing to pre-existing `-id` order
-            limit=1000,
+            limit=limit,
             referrer="tagstore.get_group_tag_value_iter",
             offset=offset,
         )
@@ -759,7 +811,7 @@ class SnubaTagStorage(TagStorage):
         return group_tag_values
 
     def get_group_tag_value_paginator(
-        self, project_id, group_id, environment_id, key, order_by="-id"
+        self, project_id, group_id, environment_ids, key, order_by="-id"
     ):
         from sentry.api.paginator import SequencePaginator
 
@@ -771,7 +823,7 @@ class SnubaTagStorage(TagStorage):
         else:
             raise ValueError("Unsupported order_by: %s" % order_by)
 
-        group_tag_values = self.get_group_tag_value_iter(project_id, group_id, environment_id, key)
+        group_tag_values = self.get_group_tag_value_iter(project_id, group_id, environment_ids, key)
 
         desc = order_by.startswith("-")
         score_field = order_by.lstrip("-")

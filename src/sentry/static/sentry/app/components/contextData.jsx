@@ -3,8 +3,10 @@ import React from 'react';
 import isString from 'lodash/isString';
 import isNumber from 'lodash/isNumber';
 import isArray from 'lodash/isArray';
+import styled from '@emotion/styled';
 
 import AnnotatedText from 'app/components/events/meta/annotatedText';
+import {IconOpen} from 'app/icons';
 import {isUrl} from 'app/utils';
 
 function looksLikeObjectRepr(value) {
@@ -130,14 +132,7 @@ class ContextData extends React.Component {
     const {preserveQuotes, meta, withAnnotatedText} = this.props;
 
     function getValueWithAnnotatedText(v, meta) {
-      return (
-        <AnnotatedText
-          value={v}
-          chunks={meta.chunks}
-          remarks={meta.rem}
-          errors={meta.err}
-        />
-      );
+      return <AnnotatedText value={v} meta={meta} />;
     }
 
     /*eslint no-shadow:0*/
@@ -151,10 +146,9 @@ class ContextData extends React.Component {
       } else if (isString(value)) {
         const valueInfo = analyzeStringForRepr(value);
 
-        const valueToBeReturned =
-          withAnnotatedText && meta
-            ? getValueWithAnnotatedText(valueInfo.repr, meta)
-            : valueInfo.repr;
+        const valueToBeReturned = withAnnotatedText
+          ? getValueWithAnnotatedText(valueInfo.repr, meta)
+          : valueInfo.repr;
 
         const out = [
           <span
@@ -172,7 +166,7 @@ class ContextData extends React.Component {
         if (valueInfo.isString && isUrl(value)) {
           out.push(
             <a key="external" href={value} className="external-icon">
-              <em className="icon-open" />
+              <StyledIconOpen size="xs" />
             </a>
           );
         }
@@ -258,5 +252,10 @@ class ContextData extends React.Component {
 }
 
 ContextData.displayName = 'ContextData';
+
+const StyledIconOpen = styled(IconOpen)`
+  position: relative;
+  top: 1px;
+`;
 
 export default ContextData;

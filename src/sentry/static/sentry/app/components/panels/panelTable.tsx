@@ -42,6 +42,11 @@ type Props = {
   disablePadding?: boolean;
 
   className?: string;
+
+  /**
+   * A custom loading indicator.
+   */
+  loader?: React.ReactNode;
 };
 
 /**
@@ -63,9 +68,10 @@ const PanelTable = ({
   children,
   isLoading,
   isEmpty,
-  emptyMessage = t('There are no items to display'),
   disablePadding,
   className,
+  emptyMessage = t('There are no items to display'),
+  loader,
 }: Props) => {
   const shouldShowLoading = isLoading === true;
   const shouldShowEmptyMessage = !shouldShowLoading && isEmpty;
@@ -83,9 +89,7 @@ const PanelTable = ({
       ))}
 
       {shouldShowLoading && (
-        <LoadingWrapper>
-          <LoadingIndicator />
-        </LoadingWrapper>
+        <LoadingWrapper>{loader || <LoadingIndicator />}</LoadingWrapper>
       )}
 
       {shouldShowEmptyMessage && (
@@ -138,15 +142,18 @@ const Wrapper = styled(Panel, {
     border: none;
     grid-column: auto / span ${p => p.columns};
   }
+
+  /* safari needs an overflow value or the contents will spill out */
+  overflow: auto;
 `;
 
 export const PanelTableHeader = styled('div')`
-  color: ${p => p.theme.gray3};
+  color: ${p => p.theme.gray600};
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   border-radius: ${p => p.theme.borderRadius} ${p => p.theme.borderRadius} 0 0;
-  background: ${p => p.theme.offWhite};
+  background: ${p => p.theme.gray100};
   line-height: 1;
 `;
 

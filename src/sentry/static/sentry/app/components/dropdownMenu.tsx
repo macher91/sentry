@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import React from 'react';
-import * as Sentry from '@sentry/browser';
+import * as Sentry from '@sentry/react';
 
 import {MENU_CLOSE_DELAY} from 'app/constants';
 
@@ -35,8 +35,8 @@ type MenuProps = {
   onMouseLeave: (e: React.MouseEvent<Element>) => void;
 };
 
-type GetActorPropsFn = (opts: GetActorArgs) => ActorProps;
-type GetMenuPropsFn = (opts: GetMenuArgs) => MenuProps;
+export type GetActorPropsFn = (opts?: GetActorArgs) => ActorProps;
+type GetMenuPropsFn = (opts?: GetMenuArgs) => MenuProps;
 
 type RenderProps = {
   isOpen: boolean;
@@ -320,7 +320,7 @@ class DropdownMenu extends React.Component<Props, State> {
     onKeyDown,
     style = {},
     ...props
-  } = {}) => {
+  }: GetActorArgs = {}) => {
     const {isNestedDropdown, closeOnEscape} = this.props;
 
     const refProps = {ref: this.handleActorMount};

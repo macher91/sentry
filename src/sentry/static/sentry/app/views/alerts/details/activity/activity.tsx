@@ -92,7 +92,7 @@ class Activity extends React.Component<Props> {
               error={createError}
               errorJSON={createErrorJSON}
               placeholder={t(
-                'Leave a comment, paste a tweet, or link any other relevant information about this Incident...'
+                'Leave a comment, paste a tweet, or link any other relevant information about this alert...'
               )}
               {...noteProps}
             />
@@ -135,6 +135,7 @@ class Activity extends React.Component<Props> {
                             user={activity.user}
                             modelId={activity.id}
                             text={activity.comment}
+                            dateCreated={activity.dateCreated}
                             activity={activity}
                             authorName={authorName}
                             onDelete={this.handleDeleteNote}
@@ -167,7 +168,7 @@ class Activity extends React.Component<Props> {
 export default Activity;
 
 const StyledTimeSince = styled(TimeSince)`
-  color: ${p => p.theme.gray2};
+  color: ${p => p.theme.gray500};
   font-size: ${p => p.theme.fontSizeSmall};
   margin-left: ${space(0.5)};
 `;

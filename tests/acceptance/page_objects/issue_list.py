@@ -9,10 +9,9 @@ class IssueListPage(BasePage):
     def __init__(self, browser, client):
         super(IssueListPage, self).__init__(browser)
         self.client = client
-        self.global_selection = GlobalSelectionPage(browser, client)
+        self.global_selection = GlobalSelectionPage(browser)
 
     def visit_issue_list(self, org, query=""):
-        self.dismiss_assistant()
         self.browser.get(u"/organizations/{}/issues/{}".format(org, query))
         self.wait_until_loaded()
 
@@ -38,4 +37,4 @@ class IssueListPage(BasePage):
         self.browser.wait_until('[data-test-id="group"]')
 
     def find_resolved_issues(self):
-        return self.browser.find_elements_by_css_selector('[data-test-id="resolved-issue"]')
+        return self.browser.elements('[data-test-id="resolved-issue"]')

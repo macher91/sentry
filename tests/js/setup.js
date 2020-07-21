@@ -53,7 +53,7 @@ jest.mock('app/utils/domId');
 jest.mock('app/utils/withOrganization');
 jest.mock('scroll-to-element', () => jest.fn());
 jest.mock('react-router', () => {
-  const ReactRouter = require.requireActual('react-router');
+  const ReactRouter = jest.requireActual('react-router');
   return {
     IndexRedirect: ReactRouter.IndexRedirect,
     IndexRoute: ReactRouter.IndexRoute,
@@ -75,7 +75,7 @@ jest.mock('react-lazyload', () => {
 });
 
 jest.mock('react-virtualized', () => {
-  const ActualReactVirtualized = require.requireActual('react-virtualized');
+  const ActualReactVirtualized = jest.requireActual('react-virtualized');
   return {
     ...ActualReactVirtualized,
     AutoSizer: ({children}) => children({width: 100, height: 100}),
@@ -96,8 +96,8 @@ jest.mock('echarts-for-react/lib/core', () => {
   };
 });
 
-jest.mock('@sentry/browser', () => {
-  const SentryBrowser = require.requireActual('@sentry/browser');
+jest.mock('@sentry/react', () => {
+  const SentryReact = jest.requireActual('@sentry/react');
   return {
     init: jest.fn(),
     configureScope: jest.fn(),
@@ -113,9 +113,10 @@ jest.mock('@sentry/browser', () => {
     startSpan: jest.fn(),
     finishSpan: jest.fn(),
     lastEventId: jest.fn(),
-    getCurrentHub: jest.spyOn(SentryBrowser, 'getCurrentHub'),
-    withScope: jest.spyOn(SentryBrowser, 'withScope'),
-    Severity: SentryBrowser.Severity,
+    getCurrentHub: jest.spyOn(SentryReact, 'getCurrentHub'),
+    withScope: jest.spyOn(SentryReact, 'withScope'),
+    Severity: SentryReact.Severity,
+    withProfiler: SentryReact.withProfiler,
   };
 });
 
@@ -148,7 +149,7 @@ window.$ = window.jQuery = jQuery;
 window.scrollTo = jest.fn();
 
 // This is very commonly used, so expose it globally.
-window.MockApiClient = require.requireMock('app/api').Client;
+window.MockApiClient = jest.requireMock('app/api').Client;
 
 window.TestStubs = {
   // react-router's 'router' context

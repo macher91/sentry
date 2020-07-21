@@ -1,10 +1,10 @@
 import {Link} from 'react-router';
 import PropTypes from 'prop-types';
 import React from 'react';
-import createReactClass from 'create-react-class';
 import moment from 'moment-timezone';
 import styled from '@emotion/styled';
 
+import {IconNext, IconPrevious, IconWarning} from 'app/icons';
 import {t} from 'app/locale';
 import Button from 'app/components/button';
 import ButtonBar from 'app/components/buttonBar';
@@ -16,7 +16,6 @@ import SentryTypes from 'app/sentryTypes';
 import Tooltip from 'app/components/tooltip';
 import getDynamicText from 'app/utils/getDynamicText';
 import space from 'app/styles/space';
-import {transactionSummaryRouteWithEventView} from 'app/views/performance/transactionSummary/utils';
 
 const formatDateDelta = (reference, observed) => {
   const duration = moment.duration(Math.abs(+observed - +reference));
@@ -39,20 +38,17 @@ const formatDateDelta = (reference, observed) => {
   return results.join(', ');
 };
 
-const GroupEventToolbar = createReactClass({
-  displayName: 'GroupEventToolbar',
-
-  propTypes: {
+class GroupEventToolbar extends React.Component {
+  static propTypes = {
     orgId: PropTypes.string.isRequired,
     group: SentryTypes.Group.isRequired,
     event: SentryTypes.Event.isRequired,
     location: PropTypes.object.isRequired,
-    organization: SentryTypes.Organization.isRequired,
-  },
+  };
 
   shouldComponentUpdate(nextProps) {
     return this.props.event.id !== nextProps.event.id;
-  },
+  }
 
   getDateTooltip() {
     const evt = this.props.event;
@@ -84,45 +80,7 @@ const GroupEventToolbar = createReactClass({
         )}
       </dl>
     );
-  },
-
-  renderRelatedTransactionButton() {
-    const {organization, event, orgId} = this.props;
-
-    const orgFeatures = new Set(organization.features);
-
-    if (!orgFeatures.has('performance-view')) {
-      return null;
-    }
-
-    const transactionTag = event?.tags?.find(tag => {
-      return tag?.key === 'transaction';
-    });
-
-    if (!transactionTag) {
-      return null;
-    }
-
-    const transactionName = transactionTag?.value;
-
-    if (typeof transactionName !== 'string' || !transactionName) {
-      return null;
-    }
-
-    const to = transactionSummaryRouteWithEventView({
-      orgSlug: orgId,
-      transaction: transactionName,
-      projectID: event.projectID,
-    });
-
-    return (
-      <div key="related-transaction">
-        <RelatedTransactionButton title={t('Related Transaction')} to={to} size="small">
-          {t('Related Transaction')}
-        </RelatedTransactionButton>
-      </div>
-    );
-  },
+  }
 
   render() {
     const evt = this.props.event;
@@ -133,16 +91,14 @@ const GroupEventToolbar = createReactClass({
     const baseEventsPath = `/organizations/${orgId}/issues/${groupId}/events/`;
 
     const eventNavNodes = [
-      this.renderRelatedTransactionButton(),
       <Button
         size="small"
         key="oldest"
         to={{pathname: `${baseEventsPath}oldest/`, query: location.query}}
         disabled={!evt.previousEventID}
         aria-label={t('Oldest')}
-      >
-        <span className="icon-skip-back" />
-      </Button>,
+        icon={<IconPrevious size="xs" />}
+      />,
       <Button
         size="small"
         key="prev"
@@ -168,9 +124,8 @@ const GroupEventToolbar = createReactClass({
         to={{pathname: `${baseEventsPath}latest/`, query: location.query}}
         disabled={!evt.nextEventID}
         aria-label={t('Newest')}
-      >
-        <span className="icon-skip-forward" />
-      </Button>,
+        icon={<IconNext size="xs" />}
+      />,
     ];
 
     // TODO: possible to define this as a route in react-router, but without a corresponding
@@ -187,9 +142,9 @@ const GroupEventToolbar = createReactClass({
 
     return (
       <div className="event-toolbar">
-        <div className="pull-right">
+        <NavigationButtons gap={1}>
           <ButtonBar merged>{eventNavNodes}</ButtonBar>
-        </div>
+        </NavigationButtons>
         <h4>
           {t('Event')}{' '}
           <Link to={`${baseEventsPath}${evt.id}/`} className="event-id">
@@ -202,7 +157,7 @@ const GroupEventToolbar = createReactClass({
               date={getDynamicText({value: evt.dateCreated, fixed: 'Dummy timestamp'})}
               style={style}
             />
-            {isOverLatencyThreshold && <span className="icon-alert" />}
+            {isOverLatencyThreshold && <StyledIconWarning color="yellow500" />}
           </Tooltip>
           <ExternalLink href={jsonUrl} className="json-link">
             {'JSON'} (<FileSize bytes={evt.size} />)
@@ -210,11 +165,17 @@ const GroupEventToolbar = createReactClass({
         </span>
       </div>
     );
-  },
-});
+  }
+}
 
-const RelatedTransactionButton = styled(Button)`
-  margin-right: ${space(2)};
+const NavigationButtons = styled(ButtonBar)`
+  float: right;
+`;
+
+const StyledIconWarning = styled(IconWarning)`
+  margin-left: ${space(0.5)};
+  position: relative;
+  top: ${space(0.25)};
 `;
 
 export default GroupEventToolbar;

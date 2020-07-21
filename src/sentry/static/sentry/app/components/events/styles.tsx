@@ -5,11 +5,11 @@ import theme from 'app/utils/theme';
 
 const COLORS = {
   default: {
-    background: theme.whiteDark,
+    background: theme.gray100,
     border: theme.borderLight,
   },
   danger: {
-    background: theme.redLightest,
+    background: theme.red100,
     // TODO(theme) This pink is non-standard
     border: '#e7c0bc',
   },
@@ -77,7 +77,7 @@ export const CauseHeader = styled('div')`
 
   & button,
   & h3 {
-    color: ${p => p.theme.gray2};
+    color: ${p => p.theme.gray500};
     font-size: 14px;
     font-weight: 600;
     line-height: 1.2;

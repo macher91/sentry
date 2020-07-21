@@ -2,6 +2,7 @@ import React from 'react';
 import {browserHistory} from 'react-router';
 
 import {mountWithTheme} from 'sentry-test/enzyme';
+
 import DiscoverContainerWithStore, {DiscoverContainer} from 'app/views/discover';
 
 describe('DiscoverContainer', function() {
@@ -264,7 +265,49 @@ describe('DiscoverContainer', function() {
   });
 
   describe('no access', function() {
-    it('display no access message', async function() {
+    it('redirects to discover query if they have access to discover-query', function() {
+      const organization = TestStubs.Organization({
+        projects: [TestStubs.Project()],
+        features: ['discover-query'],
+      });
+      const router = TestStubs.router();
+      mountWithTheme(
+        <DiscoverContainer
+          location={{query: {}, search: ''}}
+          params={{}}
+          selection={{datetime: {}}}
+          organization={organization}
+          router={router}
+        />,
+        TestStubs.routerContext()
+      );
+      expect(router.replace).toHaveBeenCalledWith(
+        `/organizations/${organization.slug}/discover/queries/`
+      );
+    });
+
+    it('redirects to discover results if they have access to discover-basic', function() {
+      const organization = TestStubs.Organization({
+        projects: [TestStubs.Project()],
+        features: ['discover-basic'],
+      });
+      const router = TestStubs.router();
+      mountWithTheme(
+        <DiscoverContainer
+          location={{query: {}, search: ''}}
+          params={{}}
+          selection={{datetime: {}}}
+          organization={organization}
+          router={router}
+        />,
+        TestStubs.routerContext()
+      );
+      expect(router.replace).toHaveBeenCalledWith(
+        `/organizations/${organization.slug}/discover/results/`
+      );
+    });
+
+    it('shows no feature alert if they have no access', function() {
       const organization = TestStubs.Organization({projects: [TestStubs.Project()]});
       const wrapper = mountWithTheme(
         <DiscoverContainer

@@ -27,12 +27,11 @@ from sentry.tagstore.base import TOP_VALUES_DEFAULT_LIMIT
 from sentry.utils.snuba import (
     Dataset,
     SnubaTSResult,
-    DISCOVER_COLUMN_MAP,
-    QUOTED_LITERAL_RE,
     raw_query,
     to_naive_timestamp,
     naiveify_datetime,
-    resolve_condition,
+    resolve_snuba_aliases,
+    resolve_column,
 )
 
 __all__ = (
@@ -44,7 +43,6 @@ __all__ = (
     "key_transaction_query",
     "timeseries_query",
     "top_events_timeseries",
-    "get_pagination_ids",
     "get_facets",
     "transform_results",
     "zerofill",
@@ -58,6 +56,8 @@ ReferenceEvent.__new__.__defaults__ = (None, None)
 
 PaginationResult = namedtuple("PaginationResult", ["next", "previous", "oldest", "latest"])
 FacetResult = namedtuple("FacetResult", ["key", "value", "count"])
+
+resolve_discover_column = resolve_column(Dataset.Discover)
 
 
 def is_real_column(col):
@@ -78,9 +78,11 @@ def find_reference_event(reference_event):
     try:
         project_slug, event_id = reference_event.slug.split(":")
     except ValueError:
-        raise InvalidSearchQuery("Invalid reference event")
+        raise InvalidSearchQuery("Invalid reference event format")
 
-    column_names = [resolve_column(col) for col in reference_event.fields if is_real_column(col)]
+    column_names = [
+        resolve_discover_column(col) for col in reference_event.fields if is_real_column(col)
+    ]
     # We don't need to run a query if there are no columns
     if not column_names:
         return None
@@ -92,7 +94,7 @@ def find_reference_event(reference_event):
             status=ProjectStatus.VISIBLE,
         )
     except Project.DoesNotExist:
-        raise InvalidSearchQuery("Invalid reference event")
+        raise InvalidSearchQuery("Invalid reference event project")
 
     start = None
     end = None
@@ -114,7 +116,7 @@ def find_reference_event(reference_event):
         referrer="discover.find_reference_event",
     )
     if "error" in event or len(event["data"]) != 1:
-        raise InvalidSearchQuery("Invalid reference event")
+        raise InvalidSearchQuery("Unable to find reference event")
 
     return event["data"][0]
 
@@ -134,7 +136,7 @@ def create_reference_event_conditions(reference_event):
     if event_data is None:
         return conditions
 
-    field_names = [resolve_column(col) for col in reference_event.fields]
+    field_names = [resolve_discover_column(col) for col in reference_event.fields]
     for (i, field) in enumerate(reference_event.fields):
         value = event_data.get(field_names[i], None)
         # If the value is a sequence use the first element as snuba
@@ -186,8 +188,9 @@ def find_histogram_buckets(field, params, conditions):
     conditions = deepcopy(conditions) if conditions else []
     found = False
     for cond in conditions:
-        if (cond[0], cond[1], cond[2]) == ("event.type", "=", "transaction"):
+        if len(cond) == 3 and (cond[0], cond[1], cond[2]) == ("event.type", "=", "transaction"):
             found = True
+            break
     if not found:
         conditions.append(["event.type", "=", "transaction"])
     snuba_filter = eventstore.Filter(conditions=conditions)
@@ -215,9 +218,9 @@ def find_histogram_buckets(field, params, conditions):
 
     # Determine the first bucket that will show up in our results so that we can
     # zerofill correctly.
-    offset = floor(bucket_min / bucket_size) * bucket_size
+    offset = int(floor(bucket_min / bucket_size) * bucket_size)
 
-    return "histogram({}, {:g}, {:g}, {:g})".format(column, num_buckets, bucket_size, offset)
+    return "histogram({}, {:g}, {:.0f}, {:.0f})".format(column, num_buckets, bucket_size, offset)
 
 
 def zerofill_histogram(results, column_meta, orderby, sentry_function_alias, snuba_function_alias):
@@ -271,40 +274,6 @@ def zerofill_histogram(results, column_meta, orderby, sentry_function_alias, snu
     return new_results
 
 
-def resolve_column(col):
-    """
-    Used as a column resolver in discover queries.
-
-    Resolve a public schema name to the discover dataset.
-    unknown columns are converted into tags expressions.
-    """
-    if col is None:
-        return col
-    elif isinstance(col, (list, tuple)):
-        return col
-    # Whilst project_id is not part of the public schema we convert
-    # the project.name field into project_id way before we get here.
-    if col == "project_id":
-        return col
-    if col.startswith("tags[") or QUOTED_LITERAL_RE.match(col):
-        return col
-
-    return DISCOVER_COLUMN_MAP.get(col, u"tags[{}]".format(col))
-
-
-# TODO (evanh) Since we are assuming that all string values are columns,
-# this will get tricky if we ever have complex columns where there are
-# string arguments to the functions that aren't columns
-def resolve_complex_column(col):
-    args = col[1]
-
-    for i in range(len(args)):
-        if isinstance(args[i], (list, tuple)):
-            resolve_complex_column(args[i])
-        elif isinstance(args[i], six.string_types):
-            args[i] = resolve_column(args[i])
-
-
 def resolve_discover_aliases(snuba_filter, function_translations=None):
     """
     Resolve the public schema aliases to the discover dataset.
@@ -313,70 +282,9 @@ def resolve_discover_aliases(snuba_filter, function_translations=None):
     `translated_columns` key containing the selected fields that need to
     be renamed in the result set.
     """
-    resolved = snuba_filter.clone()
-    translated_columns = {}
-    derived_columns = set()
-    if function_translations:
-        for snuba_name, sentry_name in six.iteritems(function_translations):
-            derived_columns.add(snuba_name)
-            translated_columns[snuba_name] = sentry_name
-
-    selected_columns = resolved.selected_columns
-    if selected_columns:
-        for (idx, col) in enumerate(selected_columns):
-            if isinstance(col, (list, tuple)):
-                resolve_complex_column(col)
-            else:
-                name = resolve_column(col)
-                selected_columns[idx] = name
-                translated_columns[name] = col
-
-        resolved.selected_columns = selected_columns
-
-    groupby = resolved.groupby
-    if groupby:
-        for (idx, col) in enumerate(groupby):
-            name = col
-            if isinstance(col, (list, tuple)):
-                if len(col) == 3:
-                    name = col[2]
-            elif col not in derived_columns:
-                name = resolve_column(col)
-
-            groupby[idx] = name
-        resolved.groupby = groupby
-
-    aggregations = resolved.aggregations
-    for aggregation in aggregations or []:
-        derived_columns.add(aggregation[2])
-        if isinstance(aggregation[1], six.string_types):
-            aggregation[1] = resolve_column(aggregation[1])
-        elif isinstance(aggregation[1], (set, tuple, list)):
-            aggregation[1] = [resolve_column(col) for col in aggregation[1]]
-    resolved.aggregations = aggregations
-
-    conditions = resolved.conditions
-    if conditions:
-        for (i, condition) in enumerate(conditions):
-            replacement = resolve_condition(condition, resolve_column)
-            conditions[i] = replacement
-        resolved.conditions = [c for c in conditions if c]
-
-    orderby = resolved.orderby
-    if orderby:
-        orderby = orderby if isinstance(orderby, (list, tuple)) else [orderby]
-        resolved_orderby = []
-
-        for field_with_order in orderby:
-            field = field_with_order.lstrip("-")
-            resolved_orderby.append(
-                u"{}{}".format(
-                    "-" if field_with_order.startswith("-") else "",
-                    field if field in derived_columns else resolve_column(field),
-                )
-            )
-        resolved.orderby = resolved_orderby
-    return resolved, translated_columns
+    return resolve_snuba_aliases(
+        snuba_filter, resolve_discover_column, function_translations=function_translations
+    )
 
 
 def zerofill(data, start, end, rollup, orderby):
@@ -493,6 +401,8 @@ OLD_FUNCTIONS_TO_NEW = {
     "latest_event": "latest_event()",
     "apdex": "apdex(300)",
     "impact": "impact(300)",
+    "rpm": "epm()",
+    "rps": "eps()",
 }
 
 
@@ -522,7 +432,7 @@ def transform_deprecated_functions_in_query(query):
         if old_function + "()" in query:
             replacement = OLD_FUNCTIONS_TO_NEW[old_function]
             query = query.replace(old_function + "()", replacement)
-        elif old_function in query:
+        elif old_function + ":" in query:
             replacement = OLD_FUNCTIONS_TO_NEW[old_function]
             query = query.replace(old_function, replacement)
 
@@ -715,6 +625,7 @@ def key_transaction_query(selected_columns, user_query, params, orderby, referre
         orderby=orderby,
         referrer=referrer,
         conditions=key_transaction_conditions(queryset),
+        use_aggregate_conditions=True,
     )
 
 
@@ -903,6 +814,7 @@ def top_events_timeseries(
             orderby=orderby,
             limit=limit,
             referrer=referrer,
+            use_aggregate_conditions=True,
         )
 
     with sentry_sdk.start_span(
@@ -914,7 +826,6 @@ def top_events_timeseries(
         )
 
         user_fields = FIELD_ALIASES["user"]["fields"]
-
         for field in selected_columns:
             # project is handled by filter_keys already
             if field in ["project", "project.id"]:
@@ -936,22 +847,26 @@ def top_events_timeseries(
                 # A user field can be any of its field aliases, do an OR across all the user fields
                 elif field == "user":
                     snuba_filter.conditions.append(
-                        [[resolve_column(user_field), "IN", values] for user_field in user_fields]
+                        [
+                            [resolve_discover_column(user_field), "IN", values]
+                            for user_field in user_fields
+                        ]
                     )
                 elif None in values:
                     non_none_values = [value for value in values if value is not None]
-                    condition = [[["isNull", [resolve_column(field)]], "=", 1]]
+                    condition = [[["isNull", [resolve_discover_column(field)]], "=", 1]]
                     if non_none_values:
-                        condition.append([resolve_column(field), "IN", non_none_values])
+                        condition.append([resolve_discover_column(field), "IN", non_none_values])
                     snuba_filter.conditions.append(condition)
                 else:
-                    snuba_filter.conditions.append([resolve_column(field), "IN", values])
+                    snuba_filter.conditions.append([resolve_discover_column(field), "IN", values])
 
     with sentry_sdk.start_span(op="discover.discover", description="top_events.snuba_query"):
         result = raw_query(
             aggregations=snuba_filter.aggregations,
             conditions=snuba_filter.conditions,
             filter_keys=snuba_filter.filter_keys,
+            selected_columns=snuba_filter.selected_columns,
             start=snuba_filter.start,
             end=snuba_filter.end,
             rollup=rollup,
@@ -1027,65 +942,6 @@ def get_id(result):
         return result[1]
 
 
-def get_pagination_ids(event, query, params, organization, reference_event=None, referrer=None):
-    """
-    High-level API for getting pagination data for an event + filter
-
-    The provided event is used as a reference event to find events
-    that are older and newer than the current one.
-
-    event (Event) The event to find related events for.
-    query (str) Filter query string to create conditions from.
-    params (Dict[str, str]) Filtering parameters with start, end, project_id, environment,
-    reference_event (ReferenceEvent) A reference event object. Used to generate additional
-                                    conditions based on the provided reference.
-    referrer (str|None) A referrer string to help locate the origin of this query.
-    """
-    # TODO(evanh): This can be removed once we migrate the frontend / saved queries
-    # to use the new function values
-    query = transform_deprecated_functions_in_query(query)
-
-    snuba_filter = get_filter(query, params)
-
-    if reference_event:
-        ref_conditions = create_reference_event_conditions(reference_event)
-        if ref_conditions:
-            snuba_filter.conditions.extend(ref_conditions)
-
-    result = {
-        "next": eventstore.get_next_event_id(event, filter=snuba_filter),
-        "previous": eventstore.get_prev_event_id(event, filter=snuba_filter),
-        "latest": eventstore.get_latest_event_id(event, filter=snuba_filter),
-        "oldest": eventstore.get_earliest_event_id(event, filter=snuba_filter),
-    }
-
-    # translate project ids to slugs
-
-    project_ids = set([tuple[0] for tuple in result.values() if tuple])
-
-    project_slugs = {}
-    projects = Project.objects.filter(
-        id__in=list(project_ids), organization=organization, status=ProjectStatus.VISIBLE
-    ).values("id", "slug")
-
-    for project in projects:
-        project_slugs[project["id"]] = project["slug"]
-
-    def into_pagination_record(project_slug_event_id):
-
-        if not project_slug_event_id:
-            return None
-
-        project_id = int(project_slug_event_id[0])
-
-        return "{}:{}".format(project_slugs[project_id], project_slug_event_id[1])
-
-    for key, value in result.items():
-        result[key] = into_pagination_record(value)
-
-    return PaginationResult(**result)
-
-
 def get_facets(query, params, limit=10, referrer=None):
     """
     High-level API for getting 'facet map' results.
@@ -1145,7 +1001,8 @@ def get_facets(query, params, limit=10, referrer=None):
     # sentry.options. To test the lowest acceptable sampling rate, we use 0.1 which
     # is equivalent to turbo. We don't use turbo though as we need to re-scale data, and
     # using turbo could cause results to be wrong if the value of turbo is changed in snuba.
-    sample_rate = 0.1 if key_names["data"][0]["count"] > 10000 else None
+    sampling_enabled = options.get("discover2.tags_facet_enable_sampling")
+    sample_rate = 0.1 if (sampling_enabled and key_names["data"][0]["count"] > 10000) else None
     # Rescale the results if we're sampling
     multiplier = 1 / sample_rate if sample_rate is not None else 1
 

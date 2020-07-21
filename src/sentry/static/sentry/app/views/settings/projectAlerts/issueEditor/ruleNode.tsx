@@ -207,7 +207,7 @@ class RuleNode extends React.Component<Props> {
     switch (data.targetType) {
       case MailActionTargetType.IssueOwners:
         return (
-          <MarginlessAlert thinner type="warning">
+          <MarginlessAlert type="warning">
             {tct(
               'If there are no matching [issueOwners], ownership is determined by the [ownershipSettings].',
               {
@@ -231,7 +231,7 @@ class RuleNode extends React.Component<Props> {
         return null;
       case MailActionTargetType.Member:
         return (
-          <MarginlessAlert thinner type="warning">
+          <MarginlessAlert type="warning">
             {tct('Alerts sent directly to a member override their [alertSettings].', {
               alertSettings: (
                 <ExternalLink href="/settings/account/notifications/">
@@ -293,7 +293,7 @@ const RuleRow = styled('div')`
 
 const RuleRowContainer = styled('div')`
   &:nth-child(odd) {
-    background-color: ${p => p.theme.offWhite};
+    background-color: ${p => p.theme.gray100};
   }
 `;
 

@@ -4,6 +4,7 @@ import React from 'react';
 
 import {initializeOrg} from 'sentry-test/initializeOrg';
 import {mountWithTheme, shallow} from 'sentry-test/enzyme';
+
 import ErrorRobot from 'app/components/errorRobot';
 import GroupStore from 'app/stores/groupStore';
 import IssueListWithStores, {IssueListOverview} from 'app/views/issueList/overview';
@@ -1034,9 +1035,7 @@ describe('IssueList', function() {
   describe('transitionTo', function() {
     let instance;
     beforeEach(function() {
-      wrapper = shallow(<IssueListOverview {...props} />, {
-        disableLifecycleMethods: false,
-      });
+      wrapper = shallow(<IssueListOverview {...props} />);
       instance = wrapper.instance();
     });
 
@@ -1153,9 +1152,7 @@ describe('IssueList', function() {
 
   describe('getEndpointParams', function() {
     beforeEach(function() {
-      wrapper = shallow(<IssueListOverview {...props} />, {
-        disableLifecycleMethods: false,
-      });
+      wrapper = shallow(<IssueListOverview {...props} />);
     });
 
     it('omits null values', function() {
@@ -1242,9 +1239,7 @@ describe('IssueList', function() {
         },
       });
       fetchDataMock.mockReset();
-      wrapper = shallow(<IssueListOverview {...props} />, {
-        disableLifecycleMethods: false,
-      });
+      wrapper = shallow(<IssueListOverview {...props} />);
     });
 
     it('fetches data on selection change', function() {
@@ -1297,9 +1292,7 @@ describe('IssueList', function() {
 
   describe('componentDidUpdate fetching members', function() {
     beforeEach(function() {
-      wrapper = shallow(<IssueListOverview {...props} />, {
-        disableLifecycleMethods: false,
-      });
+      wrapper = shallow(<IssueListOverview {...props} />);
       wrapper.instance().fetchData = jest.fn();
     });
 
@@ -1320,9 +1313,7 @@ describe('IssueList', function() {
 
   describe('componentDidUpdate fetching tags', function() {
     beforeEach(function() {
-      wrapper = shallow(<IssueListOverview {...props} />, {
-        disableLifecycleMethods: false,
-      });
+      wrapper = shallow(<IssueListOverview {...props} />);
       wrapper.instance().fetchData = jest.fn();
     });
 
@@ -1365,9 +1356,7 @@ describe('IssueList', function() {
 
   describe('render states', function() {
     beforeEach(function() {
-      wrapper = mountWithTheme(<IssueListOverview {...props} />, {
-        disableLifecycleMethods: false,
-      });
+      wrapper = mountWithTheme(<IssueListOverview {...props} />);
     });
 
     it('displays the loading icon', function() {
@@ -1408,9 +1397,7 @@ describe('IssueList', function() {
         },
       };
 
-      wrapper = mountWithTheme(<IssueListOverview {...errorsOnlyQuery} />, {
-        disableLifecycleMethods: false,
-      });
+      wrapper = mountWithTheme(<IssueListOverview {...errorsOnlyQuery} />);
 
       wrapper.setState({
         savedSearchLoading: false,
@@ -1434,9 +1421,7 @@ describe('IssueList', function() {
         },
       };
 
-      wrapper = mountWithTheme(<IssueListOverview {...hasBrowserQuery} />, {
-        disableLifecycleMethods: false,
-      });
+      wrapper = mountWithTheme(<IssueListOverview {...hasBrowserQuery} />);
 
       wrapper.setState({
         savedSearchLoading: false,
@@ -1471,9 +1456,7 @@ describe('IssueList', function() {
         }),
         ...moreProps,
       };
-      const localWrapper = mountWithTheme(<IssueListOverview {...defaultProps} />, {
-        disableLifecycleMethods: false,
-      });
+      const localWrapper = mountWithTheme(<IssueListOverview {...defaultProps} />);
       localWrapper.setState({
         error: false,
         issuesLoading: false,

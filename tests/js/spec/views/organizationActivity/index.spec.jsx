@@ -2,6 +2,7 @@ import React from 'react';
 
 import {mount} from 'sentry-test/enzyme';
 import {initializeOrg} from 'sentry-test/initializeOrg';
+
 import OrganizationActivity from 'app/views/organizationActivity';
 
 describe('OrganizationUserFeedback', function() {
@@ -38,6 +39,18 @@ describe('OrganizationUserFeedback', function() {
     MockApiClient.addMockResponse({
       url: '/organizations/org-slug/activity/',
       body: [],
+    });
+    const wrapper = mount(<OrganizationActivity {...params} />, routerContext);
+
+    expect(wrapper.find('ActivityItem')).toHaveLength(0);
+    expect(wrapper.find('EmptyMessage')).toHaveLength(1);
+  });
+
+  it('renders not found', function() {
+    MockApiClient.addMockResponse({
+      url: '/organizations/org-slug/activity/',
+      body: [],
+      statusCode: 404,
     });
     const wrapper = mount(<OrganizationActivity {...params} />, routerContext);
 

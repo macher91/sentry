@@ -1,7 +1,8 @@
 import React from 'react';
 
-import {mount} from 'sentry-test/enzyme';
+import {mountWithTheme} from 'sentry-test/enzyme';
 import {initializeOrg} from 'sentry-test/initializeOrg';
+
 import WidgetChart from 'app/views/dashboards/widgetChart';
 
 describe('WidgetChart', function() {
@@ -62,7 +63,7 @@ describe('WidgetChart', function() {
   });
 
   it('renders zoomable time chart', async function() {
-    wrapper = mount(
+    wrapper = mountWithTheme(
       <WidgetChart
         widget={TestStubs.Widget({
           discover: [TIME_QUERY],
@@ -79,7 +80,7 @@ describe('WidgetChart', function() {
   });
 
   it('renders time chart with series', async function() {
-    wrapper = mount(
+    wrapper = mountWithTheme(
       <WidgetChart
         widget={TestStubs.Widget(
           {
@@ -100,7 +101,7 @@ describe('WidgetChart', function() {
   });
 
   it('renders non-zoomable non-time chart', async function() {
-    wrapper = mount(
+    wrapper = mountWithTheme(
       <WidgetChart
         widget={TestStubs.Widget(
           {
@@ -122,7 +123,7 @@ describe('WidgetChart', function() {
   });
 
   it('update only if data is not reloading and data has changed', async function() {
-    wrapper = mount(
+    wrapper = mountWithTheme(
       <WidgetChart
         widget={TestStubs.Widget(
           {

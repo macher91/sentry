@@ -1,10 +1,12 @@
 PIP := python -m pip --disable-pip-version-check
-WEBPACK := NODE_ENV=production ./bin/yarn webpack
-YARN := ./bin/yarn
+WEBPACK := NODE_ENV=production yarn webpack
 
-bootstrap: develop init-config run-dependent-services create-db apply-migrations
+# Currently, this is only required to install black via pre-commit.
+REQUIRED_PY3_VERSION := $(shell awk 'FNR == 2' .python-version)
 
-develop: ensure-pinned-pip setup-git install-yarn-pkgs install-sentry-dev
+bootstrap: develop init-config run-dependent-services create-db apply-migrations build-platform-assets
+
+develop: ensure-pinned-pip setup-git install-js-dev install-py-dev
 
 clean:
 	@echo "--> Cleaning static cache"
@@ -46,6 +48,9 @@ apply-migrations: ensure-venv
 
 reset-db: drop-db create-db apply-migrations
 
+setup-pyenv:
+	@cat .python-version | xargs -n1 pyenv install --skip-existing
+
 ensure-venv:
 	@./scripts/ensure-venv.sh
 
@@ -60,30 +65,27 @@ setup-git-config:
 setup-git: ensure-venv setup-git-config
 	@echo "--> Installing git hooks"
 	cd .git/hooks && ln -sf ../../config/hooks/* ./
-	@# XXX(joshuarli): virtualenv >= 20 doesn't work with the version of six we have pinned for sentry.
-	@# Since pre-commit is installed in the venv, it will install virtualenv in the venv as well.
-	@# We need to tell pre-commit to install an older virtualenv,
-	@# And we need to tell virtualenv to install an older six, so that sentry installation
-	@# won't complain about a newer six being present.
-	@# So, this six pin here needs to be synced with requirements-base.txt.
-	$(PIP) install "pre-commit==1.18.2" "virtualenv>=16.7,<20" "six>=1.10.0,<1.11.0"
-	pre-commit install --install-hooks
+	@PYENV_VERSION=$(REQUIRED_PY3_VERSION) python3 -c '' || (echo 'Please run `make setup-pyenv` to install the required Python 3 version.'; exit 1)
+	$(PIP) install "pre-commit==1.18.2" "virtualenv==20.0.23"
+	@PYENV_VERSION=$(REQUIRED_PY3_VERSION) pre-commit install --install-hooks
 	@echo ""
 
 node-version-check:
-	@test "$$(node -v)" = v"$$(cat .nvmrc)" || (echo 'node version does not match .nvmrc. Recommended to use https://github.com/volta-cli/volta'; exit 1)
+	@# Checks to see if node's version matches the one specified in package.json for Volta.
+	@node -pe "process.exit(Number(!(process.version == 'v' + require('./package.json').volta.node )))" || \
+	(echo 'Unexpected node version. Recommended to use https://github.com/volta-cli/volta'; exit 1)
 
-install-yarn-pkgs: node-version-check
+install-js-dev: node-version-check
 	@echo "--> Installing Yarn packages (for development)"
 	# Use NODE_ENV=development so that yarn installs both dependencies + devDependencies
-	NODE_ENV=development $(YARN) install --frozen-lockfile
+	NODE_ENV=development yarn install --frozen-lockfile
 	# A common problem is with node packages not existing in `node_modules` even though `yarn install`
 	# says everything is up to date. Even though `yarn install` is run already, it doesn't take into
 	# account the state of the current filesystem (it only checks .yarn-integrity).
 	# Add an additional check against `node_modules`
-	$(YARN) check --verify-tree || $(YARN) install --check-files
+	yarn check --verify-tree || yarn install --check-files
 
-install-sentry-dev: ensure-pinned-pip
+install-py-dev: ensure-pinned-pip
 	@echo "--> Installing Sentry (for development)"
 	# SENTRY_LIGHT_BUILD=1 disables webpacking during setup.py.
 	# Webpacked assets are only necessary for devserver (which does it lazily anyways)
@@ -145,24 +147,24 @@ test-cli:
 
 test-js-build: node-version-check
 	@echo "--> Running type check"
-	@$(YARN) run tsc
+	@yarn run tsc
 	@echo "--> Building static assets"
 	@$(WEBPACK) --profile --json > .artifacts/webpack-stats.json
 
 test-js: node-version-check
 	@echo "--> Running JavaScript tests"
-	@$(YARN) run test
+	@yarn run test
 	@echo ""
 
 test-js-ci: node-version-check
 	@echo "--> Running CI JavaScript tests"
-	@$(YARN) run test-ci
+	@yarn run test-ci
 	@echo ""
 
 # builds and creates percy snapshots
 test-styleguide:
 	@echo "--> Building and snapshotting styleguide"
-	@$(YARN) run snapshot
+	@yarn run snapshot
 	@echo ""
 
 test-python:
@@ -200,7 +202,12 @@ test-plugins:
 	@echo "--> Building static assets"
 	@$(WEBPACK) --display errors-only
 	@echo "--> Running plugin tests"
-	py.test tests/sentry_plugins -vv --cov . --cov-report="xml:.artifacts/plugins.coverage.xml" --junit-xml=".artifacts/plugins.junit.xml"
+
+ifndef TEST_GROUP
+	py.test tests/sentry_plugins -vv --cov . --cov-report="xml:.artifacts/plugins.coverage.xml" --junit-xml=".artifacts/plugins.junit.xml" || exit 1
+else
+	py.test tests/sentry_plugins -m group_$(TEST_GROUP) -vv --cov . --cov-report="xml:.artifacts/plugins.coverage.xml" --junit-xml=".artifacts/plugins.junit.xml" || exit 1
+endif
 	@echo ""
 
 test-relay-integration:
@@ -226,7 +233,7 @@ lint-js:
 	@echo ""
 
 
-.PHONY: develop build reset-db clean setup-git node-version-check install-yarn-pkgs install-sentry-dev build-js-po locale compile-locale merge-locale-catalogs sync-transifex update-transifex build-platform-assets test-cli test-js test-js-build test-styleguide test-python test-snuba test-symbolicator test-acceptance lint-js
+.PHONY: develop build reset-db clean setup-git node-version-check install-js-dev install-py-dev build-js-po locale compile-locale merge-locale-catalogs sync-transifex update-transifex build-platform-assets test-cli test-js test-js-build test-styleguide test-python test-snuba test-symbolicator test-acceptance lint-js
 
 
 ############################

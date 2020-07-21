@@ -7,12 +7,13 @@ import classNames from 'classnames';
 import createReactClass from 'create-react-class';
 import isEqual from 'lodash/isEqual';
 import pickBy from 'lodash/pickBy';
-import qs from 'query-string';
+import * as qs from 'query-string';
+import {withProfiler} from '@sentry/react';
 
 import {Client} from 'app/api';
 import {DEFAULT_QUERY, DEFAULT_STATS_PERIOD} from 'app/constants';
 import {Panel, PanelBody} from 'app/components/panels';
-import {analytics} from 'app/utils/analytics';
+import {analytics, metric} from 'app/utils/analytics';
 import {defined} from 'app/utils';
 import {
   deleteSavedSearch,
@@ -34,7 +35,6 @@ import StreamGroup from 'app/components/stream/group';
 import StreamManager from 'app/utils/streamManager';
 import parseApiError from 'app/utils/parseApiError';
 import parseLinkHeader from 'app/utils/parseLinkHeader';
-import withProfiler from 'app/utils/withProfiler';
 import withGlobalSelection from 'app/utils/withGlobalSelection';
 import withOrganization from 'app/utils/withOrganization';
 import withSavedSearches from 'app/utils/withSavedSearches';
@@ -62,9 +62,6 @@ const IssueListOverview = createReactClass({
     savedSearches: PropTypes.arrayOf(SentryTypes.SavedSearch),
     savedSearchLoading: PropTypes.bool.isRequired,
     tags: PropTypes.object,
-
-    // TODO(apm): manual profiling
-    finishProfile: PropTypes.func,
   },
 
   mixins: [Reflux.listenTo(GroupStore, 'onGroupChange')],
@@ -110,6 +107,31 @@ const IssueListOverview = createReactClass({
   },
 
   componentDidUpdate(prevProps, prevState) {
+    // Fire off profiling/metrics first
+    if (prevState.issuesLoading && !this.state.issuesLoading) {
+      // First Meaningful Paint for /organizations/:orgId/issues/
+      if (prevState.queryCount === null) {
+        metric.measure({
+          name: 'app.page.perf.issue-list',
+          start: 'page-issue-list-start',
+          data: {
+            // start_type is set on 'page-issue-list-start'
+            org_id: parseInt(this.props.organization.id, 10),
+            group: this.props.organization.features.includes('enterprise-perf')
+              ? 'enterprise-perf'
+              : 'control',
+            milestone: 'first-meaningful-paint',
+            is_enterprise: this.props.organization.features
+              .includes('enterprise-orgs')
+              .toString(),
+            is_outlier: this.props.organization.features
+              .includes('enterprise-orgs-outliers')
+              .toString(),
+          },
+        });
+      }
+    }
+
     if (prevState.realtimeActive !== this.state.realtimeActive) {
       // User toggled realtime button
       if (this.state.realtimeActive) {
@@ -126,9 +148,6 @@ const IssueListOverview = createReactClass({
       this.fetchTags();
     }
 
-    const prevQuery = prevProps.location.query;
-    const newQuery = this.props.location.query;
-
     // Wait for saved searches to load before we attempt to fetch stream data
     if (this.props.savedSearchLoading) {
       return;
@@ -136,6 +155,9 @@ const IssueListOverview = createReactClass({
       this.fetchData();
       return;
     }
+
+    const prevQuery = prevProps.location.query;
+    const newQuery = this.props.location.query;
 
     // If any important url parameter changed or saved search changed
     // reload data.
@@ -157,14 +179,6 @@ const IssueListOverview = createReactClass({
       // Reload if we issues are loading or their loading state changed.
       // This can happen when transitionTo is called
       this.fetchData();
-    }
-
-    if (
-      prevState.issuesLoading &&
-      !this.state.issuesLoading &&
-      typeof this.props.finishProfile === 'function'
-    ) {
-      this.props.finishProfile();
     }
   },
 

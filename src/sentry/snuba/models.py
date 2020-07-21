@@ -23,19 +23,7 @@ query_aggregation_to_snuba = {
 
 class QueryDatasets(Enum):
     EVENTS = "events"
-
-
-class QuerySubscriptionEnvironment(Model):
-    __core__ = True
-
-    query_subscription = FlexibleForeignKey("sentry.QuerySubscription")
-    environment = FlexibleForeignKey("sentry.Environment")
-    date_added = models.DateTimeField(default=timezone.now)
-
-    class Meta:
-        app_label = "sentry"
-        db_table = "sentry_querysubscriptionenvironment"
-        unique_together = (("query_subscription", "environment"),)
+    TRANSACTIONS = "transactions"
 
 
 class SnubaQuery(Model):
@@ -62,20 +50,13 @@ class QuerySubscription(Model):
         CREATING = 1
         UPDATING = 2
         DELETING = 3
+        DISABLED = 4
 
     project = FlexibleForeignKey("sentry.Project", db_constraint=False)
-    environments = models.ManyToManyField(
-        "sentry.Environment", through=QuerySubscriptionEnvironment
-    )
     snuba_query = FlexibleForeignKey("sentry.SnubaQuery", null=True, related_name="subscriptions")
     type = models.TextField()
     status = models.SmallIntegerField(default=Status.ACTIVE.value)
     subscription_id = models.TextField(unique=True, null=True)
-    dataset = models.TextField(null=True)
-    query = models.TextField(null=True)
-    aggregation = models.IntegerField(default=0, null=True)
-    time_window = models.IntegerField(null=True)
-    resolution = models.IntegerField(null=True)
     date_added = models.DateTimeField(default=timezone.now)
 
     objects = BaseManager(

@@ -5,13 +5,13 @@ import styled from '@emotion/styled';
 import {Client} from 'app/api';
 import {Organization, Project} from 'app/types';
 import {SeriesDataUnit} from 'app/types/echarts';
-import EventsRequest from 'app/views/events/utils/eventsRequest';
-import {getDisplayForAlertRuleAggregation} from 'app/views/alerts/utils';
+import EventsRequest from 'app/components/charts/eventsRequest';
 import LoadingMask from 'app/components/loadingMask';
 import Placeholder from 'app/components/placeholder';
 import space from 'app/styles/space';
+import withApi from 'app/utils/withApi';
 
-import {AlertRuleAggregations, IncidentRule, TimeWindow, Trigger} from '../../types';
+import {IncidentRule, TimeWindow, Trigger} from '../../types';
 import ThresholdsChart from './thresholdsChart';
 
 type Props = {
@@ -21,8 +21,11 @@ type Props = {
 
   query: IncidentRule['query'];
   timeWindow: IncidentRule['timeWindow'];
-  aggregation: IncidentRule['aggregation'];
+  environment: string | null;
+  aggregate: IncidentRule['aggregate'];
   triggers: Trigger[];
+  resolveThreshold: IncidentRule['resolveThreshold'];
+  thresholdType: IncidentRule['thresholdType'];
 };
 
 /**
@@ -37,8 +40,11 @@ class TriggersChart extends React.PureComponent<Props> {
       projects,
       timeWindow,
       query,
-      aggregation,
+      aggregate,
       triggers,
+      resolveThreshold,
+      thresholdType,
+      environment,
     } = this.props;
 
     const period = getPeriodForTimeWindow(timeWindow);
@@ -48,12 +54,13 @@ class TriggersChart extends React.PureComponent<Props> {
         api={api}
         organization={organization}
         query={query}
+        environment={environment ? [environment] : undefined}
         project={projects.map(({id}) => Number(id))}
         interval={`${timeWindow}m`}
         period={period}
-        yAxis={aggregation === AlertRuleAggregations.TOTAL ? 'event_count' : 'user_count'}
+        yAxis={aggregate}
         includePrevious={false}
-        currentSeriesName={getDisplayForAlertRuleAggregation(aggregation)}
+        currentSeriesName={aggregate}
       >
         {({loading, reloading, timeseriesData}) => {
           let maxValue: SeriesDataUnit | undefined;
@@ -73,6 +80,8 @@ class TriggersChart extends React.PureComponent<Props> {
                     maxValue={maxValue ? maxValue.value : maxValue}
                     data={timeseriesData}
                     triggers={triggers}
+                    resolveThreshold={resolveThreshold}
+                    thresholdType={thresholdType}
                   />
                 </React.Fragment>
               )}
@@ -84,7 +93,7 @@ class TriggersChart extends React.PureComponent<Props> {
   }
 }
 
-export default TriggersChart;
+export default withApi(TriggersChart);
 
 const TIME_WINDOW_TO_PERIOD: Record<TimeWindow, string> = {
   [TimeWindow.ONE_MINUTE]: '12h',

@@ -2,7 +2,7 @@ import React from 'react';
 import styled from '@emotion/styled';
 import PropTypes from 'prop-types';
 
-import InlineSvg from 'app/components/inlineSvg';
+import {IconClose} from 'app/icons/iconClose';
 import space from 'app/styles/space';
 import {callIfFunction} from 'app/utils/callIfFunction';
 
@@ -139,7 +139,7 @@ const ModalOverlay = styled('div')`
   left: 0px;
   right: 0px;
   bottom: 0px;
-  background: ${p => p.theme.foreground};
+  background: ${p => p.theme.gray700};
   opacity: 0.5;
   z-index: ${p => p.theme.zIndex.modal};
 `;
@@ -189,7 +189,7 @@ const DismissButton = props => {
   const iconSize = props.size * 0.4;
   return (
     <CircleButton size={props.size} onClick={props.onClick}>
-      <InlineSvg src="icon-close" size={`${iconSize}px`} />
+      <IconClose size={`${iconSize}px`} />
     </CircleButton>
   );
 };

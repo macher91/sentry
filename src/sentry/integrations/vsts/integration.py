@@ -73,7 +73,7 @@ FEATURES = [
     FeatureDescription(
         """
         Never forget to close a resolved workitem! Resolving an issue in Sentry
-        will resolve your linked workitems and viceversa.
+        will resolve your linked workitems and vice versa.
         """,
         IntegrationFeatures.ISSUE_SYNC,
     ),
@@ -324,7 +324,7 @@ class VstsIntegrationProvider(IntegrationProvider):
 
     VSTS_ACCOUNT_LOOKUP_URL = "https://app.vssps.visualstudio.com/_apis/resourceareas/79134C72-4A58-4B42-976C-04E7115F32BF?hostId=%s&api-preview=5.0-preview.1"
 
-    def post_install(self, integration, organization):
+    def post_install(self, integration, organization, extra=None):
         repo_ids = Repository.objects.filter(
             organization_id=organization.id,
             provider__in=["visualstudio", "integrations:vsts"],

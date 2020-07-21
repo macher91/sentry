@@ -1,9 +1,22 @@
 import React from 'react';
 import * as ReactRouter from 'react-router';
+import isEqual from 'lodash/isEqual';
 
-import {initializeUrlState} from 'app/actionCreators/globalSelection';
+import {DATE_TIME_KEYS} from 'app/constants/globalSelectionHeader';
+import {
+  initializeUrlState,
+  updateProjects,
+  updateEnvironments,
+  updateDateTime,
+} from 'app/actionCreators/globalSelection';
 
+import {getStateFromQuery} from './utils';
 import GlobalSelectionHeader from './globalSelectionHeader';
+
+const getDateObjectFromQuery = query =>
+  Object.fromEntries(
+    Object.entries(query).filter(([key]) => DATE_TIME_KEYS.includes(key))
+  );
 
 type Props = {
   isDisabled: boolean;
@@ -23,6 +36,7 @@ type Props = {
     | 'shouldForceProject'
     | 'memberProjects'
     | 'organization'
+    | 'showAbsolute'
   >;
 
 /**
@@ -46,9 +60,9 @@ class InitializeGlobalSelectionHeader extends React.Component<Props> {
       shouldForceProject,
       shouldEnforceSingleProject,
       skipLoadLastUsed,
+      showAbsolute,
     } = this.props;
 
-    //
     initializeUrlState({
       organization,
       queryParams: location.query,
@@ -59,7 +73,46 @@ class InitializeGlobalSelectionHeader extends React.Component<Props> {
       forceProject,
       shouldForceProject,
       shouldEnforceSingleProject,
+      showAbsolute,
     });
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    /**
+     * This happens e.g. using browser's navigation button, in which case
+     * we need to update our store to reflect URL changes
+     */
+
+    if (prevProps.location.query !== this.props.location.query) {
+      const oldQuery = getStateFromQuery(prevProps.location.query, {
+        allowEmptyPeriod: true,
+      });
+      const newQuery = getStateFromQuery(this.props.location.query, {
+        allowEmptyPeriod: true,
+      });
+
+      const newEnvironments = newQuery.environment || [];
+      const newDateObject = getDateObjectFromQuery(newQuery);
+      const oldDateObject = getDateObjectFromQuery(oldQuery);
+
+      /**
+       * Do not pass router to these actionCreators, as we do not want to update
+       * routes since these state changes are happening due to a change of routes
+       */
+      if (!isEqual(oldQuery.project, newQuery.project)) {
+        updateProjects(newQuery.project || [], null, {environments: newEnvironments});
+      } else if (!isEqual(oldQuery.environment, newQuery.environment)) {
+        /**
+         * When the project stays the same, it's still possible that the environment
+         * changed, so explictly update the enviornment
+         */
+        updateEnvironments(newEnvironments);
+      }
+
+      if (!isEqual(oldDateObject, newDateObject)) {
+        updateDateTime(newDateObject);
+      }
+    }
   }
 
   render() {

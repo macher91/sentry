@@ -7,11 +7,10 @@ import {MEMBER_ROLES} from 'app/constants';
 import {ModalRenderProps} from 'app/actionCreators/modal';
 import {trackAnalyticsEvent} from 'app/utils/analytics';
 import {uniqueId} from 'app/utils/guid';
-import InlineSvg from 'app/components/inlineSvg';
+import {IconCheckmark, IconWarning, IconAdd, IconMail} from 'app/icons';
 import Button from 'app/components/button';
 import HookOrDefault from 'app/components/hookOrDefault';
 import QuestionTooltip from 'app/components/questionTooltip';
-import {IconAdd, IconMail} from 'app/icons';
 import space from 'app/styles/space';
 import AsyncComponent from 'app/components/asyncComponent';
 import {Organization, Team} from 'app/types';
@@ -264,7 +263,7 @@ class InviteMembersModal extends AsyncComponent<Props, State> {
 
       return (
         <StatusMessage status="success">
-          <InlineSvg src="icon-checkmark-sm" size="16px" />
+          <IconCheckmark size="sm" />
           {errorCount > 0
             ? tct('Sent [invites], [failed] failed to send.', tctComponents)
             : tct('Sent [invites]', tctComponents)}
@@ -275,7 +274,7 @@ class InviteMembersModal extends AsyncComponent<Props, State> {
     if (this.hasDuplicateEmails) {
       return (
         <StatusMessage status="error">
-          <InlineSvg src="icon-warning-sm" size="16px" />
+          <IconWarning size="sm" />
           {t('Duplicate emails between invite rows.')}
         </StatusMessage>
       );
@@ -290,9 +289,17 @@ class InviteMembersModal extends AsyncComponent<Props, State> {
 
   get inviteButtonLabel() {
     if (this.invites.length > 0) {
-      return this.willInvite
-        ? tn('Send invite', 'Send invites (%s)', this.invites.length)
-        : tn('Send invite request', 'Send invite requests (%s)', this.invites.length);
+      const numberInvites = this.invites.length;
+
+      // Note we use `t()` here because `tn()` expects the same # of string formatters
+      const inviteText =
+        numberInvites === 1 ? t('Send invite') : t('Send invites (%s)', numberInvites);
+      const requestText =
+        numberInvites === 1
+          ? t('Send invite request')
+          : t('Send invite requests (%s)', numberInvites);
+
+      return this.willInvite ? inviteText : requestText;
     }
 
     return this.willInvite ? t('Send invite') : t('Send invite request');
@@ -327,8 +334,8 @@ class InviteMembersModal extends AsyncComponent<Props, State> {
           {this.willInvite
             ? t('Invite new members by email to join your organization.')
             : t(
-                `You don't have permission to directly invite users, but we’ll
-                 send a request on your behalf!`
+                `You don’t have permission to directly invite users, but we’ll
+                 send a request on your behalf.`
               )}
         </Subtext>
 
@@ -454,7 +461,7 @@ const Heading = styled('h1')`
 `;
 
 const Subtext = styled('p')`
-  color: ${p => p.theme.gray3};
+  color: ${p => p.theme.gray600};
   margin-bottom: ${space(3)};
 `;
 
@@ -495,10 +502,10 @@ const StatusMessage = styled('div')<{status?: 'success' | 'error'}>`
   grid-gap: ${space(1)};
   align-items: center;
   font-size: ${p => p.theme.fontSizeMedium};
-  color: ${p => (p.status === 'error' ? p.theme.red : p.theme.gray3)};
+  color: ${p => (p.status === 'error' ? p.theme.red400 : p.theme.gray600)};
 
   > :first-child {
-    ${p => p.status === 'success' && `color: ${p.theme.green}`};
+    ${p => p.status === 'success' && `color: ${p.theme.green400}`};
   }
 `;
 

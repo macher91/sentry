@@ -4,65 +4,62 @@ import {t} from 'app/locale';
 import {NewQuery} from 'app/types';
 import EventView from 'app/utils/discover/eventView';
 import {decodeScalar} from 'app/utils/queryString';
-import {stringifyQueryObject} from 'app/utils/tokenizeSearch';
+import {tokenizeSearch, stringifyQueryObject} from 'app/utils/tokenizeSearch';
 
 export const DEFAULT_STATS_PERIOD = '24h';
 
-export const PERFORMANCE_EVENT_VIEW: Readonly<NewQuery> = {
-  id: undefined,
-  name: t('Performance'),
-  query: 'event.type:transaction',
-  projects: [],
-  fields: [
-    'transaction',
-    'project',
-    'rpm()',
-    'p50()',
-    'p95()',
-    'error_rate()',
-    'apdex(300)',
-    'user_misery(300)',
-    'count_unique(user)',
-  ],
-  version: 2,
-};
-
-export function generatePerformanceQuery(location: Location): Readonly<NewQuery> {
-  const extra: {[key: string]: string} = {};
-
-  const {query} = location;
-
-  const hasStartAndEnd = query?.start && query?.end;
-
-  if (!query?.statsPeriod && !hasStartAndEnd) {
-    extra.range = DEFAULT_STATS_PERIOD;
-  }
-
-  if (!query?.sort) {
-    extra.orderby = '-rpm';
-  } else {
-    const sort = query?.sort;
-    extra.orderby =
-      Array.isArray(sort) && sort.length > 0
-        ? sort[sort.length - 1]
-        : typeof sort === 'string'
-        ? sort
-        : '-rpm';
-  }
-
-  if (query?.query) {
-    const searchQuery = decodeScalar(query.query);
-    if (searchQuery) {
-      extra.query = stringifyQueryObject({
-        query: [PERFORMANCE_EVENT_VIEW.query],
-        transaction: [`*${searchQuery}*`],
-      });
-    }
-  }
-
-  return Object.assign({}, PERFORMANCE_EVENT_VIEW, extra);
-}
+export const COLUMN_TITLES = [
+  'transaction',
+  'project',
+  'tpm',
+  'p50',
+  'p95',
+  'failure rate',
+  'apdex(300)',
+  'users',
+  'user misery',
+];
 
 export function generatePerformanceEventView(location: Location): EventView {
-  return EventView.fromNewQueryWithLocation(generatePerformanceQuery(location), location);
+  const {query} = location;
+
+  const hasStartAndEnd = query.start && query.end;
+  const savedQuery: NewQuery = {
+    id: undefined,
+    name: t('Performance'),
+    query: 'event.type:transaction',
+    projects: [],
+    fields: [
+      'transaction',
+      'project',
+      'epm()',
+      'p50()',
+      'p95()',
+      'failure_rate()',
+      'apdex(300)',
+      'count_unique(user)',
+      'user_misery(300)',
+    ],
+    version: 2,
+  };
+
+  if (!query.statsPeriod && !hasStartAndEnd) {
+    savedQuery.range = DEFAULT_STATS_PERIOD;
+  }
+  savedQuery.orderby = decodeScalar(query.sort) || '-epm';
+
+  const searchQuery = decodeScalar(query.query) || '';
+  const conditions = Object.assign(tokenizeSearch(searchQuery), {
+    'event.type': ['transaction'],
+  });
+
+  // If there is a bare text search, we want to treat it as a search
+  // on the transaction name.
+  if (conditions.query.length > 0) {
+    conditions.transaction = [`*${conditions.query.join(' ')}*`];
+    conditions.query = [];
+  }
+  savedQuery.query = stringifyQueryObject(conditions);
+
+  return EventView.fromNewQueryWithLocation(savedQuery, location);
 }

@@ -4,6 +4,7 @@ import React from 'react';
 import styled from '@emotion/styled';
 
 import {migrateRepository, addRepository} from 'app/actionCreators/integrations';
+import RepositoryActions from 'app/actions/repositoryActions';
 import Alert from 'app/components/alert';
 import AsyncComponent from 'app/components/asyncComponent';
 import Button from 'app/components/button';
@@ -77,6 +78,7 @@ export default class IntegrationRepos extends AsyncComponent<Props, State> {
       }
     });
     this.setState({itemList});
+    RepositoryActions.resetRepositories();
   };
 
   debouncedSearchRepositoriesRequest = debounce(
@@ -128,6 +130,7 @@ export default class IntegrationRepos extends AsyncComponent<Props, State> {
     promise.then(
       (repo: Repository) => {
         this.setState({adding: false, itemList: itemList.concat(repo)});
+        RepositoryActions.resetRepositories();
       },
       () => this.setState({adding: false})
     );
@@ -139,7 +142,9 @@ export default class IntegrationRepos extends AsyncComponent<Props, State> {
       return (
         <DropdownButton
           disabled
-          title={t('You do not have permission to add repositories')}
+          title={t(
+            'You must be an organization owner, manager or admin to add repositories'
+          )}
           isOpen={false}
           size="xsmall"
         >

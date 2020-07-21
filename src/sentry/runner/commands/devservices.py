@@ -1,7 +1,6 @@
 from __future__ import absolute_import, print_function
 
 import time
-import atexit
 import signal
 import os
 import click
@@ -82,13 +81,14 @@ def attach(project, fast, service):
     container = _start_service(client, service, containers, project, fast=fast, always_start=True)
 
     def exit_handler(*_):
-        click.echo("Shutting down {}".format(service))
         try:
+            click.echo("Stopping {}".format(service))
             container.stop()
+            click.echo("Removing {}".format(service))
+            container.remove()
         except KeyboardInterrupt:
             pass
 
-    atexit.register(exit_handler)
     signal.signal(signal.SIGINT, exit_handler)
     signal.signal(signal.SIGTERM, exit_handler)
 
@@ -182,10 +182,15 @@ def _prepare_containers(project, silent=False):
         options["name"] = project + "_" + name
         options.setdefault("ports", {})
         options.setdefault("environment", {})
-        options.setdefault("restart_policy", {"Name": "on-failure"})
+        # set policy to unless-stopped to avoid automatically restarting containers on boot
+        # this is important given you can start multiple sets of containers that can conflict
+        # with each other
+        options.setdefault("restart_policy", {"Name": "unless-stopped"})
         options["ports"] = ensure_interface(options["ports"])
         containers[name] = options
 
+    # keys are service names
+    # a service has 1 container exactly, the container name being value["name"]
     return containers
 
 
@@ -291,10 +296,18 @@ def _start_service(client, name, containers, project, fast=False, always_start=F
 @click.option("--project", default="sentry")
 @click.argument("service", nargs=-1)
 def down(project, service):
-    "Shut down all services."
+    """
+    Shut down services without deleting their underlying containers and data.
+    Useful if you want to temporarily relieve resources on your computer.
+
+    The default is everything, however you may pass positional arguments to specify
+    an explicit list of services to bring down.
+    """
     client = get_docker_client()
 
     prefix = project + "_"
+
+    # TODO: make more like devservices rm
 
     for container in client.containers.list(all=True):
         if container.name.startswith(prefix):
@@ -305,35 +318,79 @@ def down(project, service):
 
 @devservices.command()
 @click.option("--project", default="sentry")
-@click.argument("service", nargs=-1)
-def rm(project, service):
-    "Delete all services and associated data."
+@click.argument("services", nargs=-1)
+def rm(project, services):
+    """
+    Shut down and delete all services and associated data.
+    Useful if you'd like to start with a fresh slate.
 
+    The default is everything, however you may pass positional arguments to specify
+    an explicit list of services to remove.
+    """
     import docker
-
-    click.confirm(
-        "Are you sure you want to continue?\nThis will delete all of your Sentry related data!",
-        abort=True,
-    )
 
     client = get_docker_client()
 
-    prefix = project + "_"
+    from sentry.runner import configure
 
-    for container in client.containers.list(all=True):
-        if container.name.startswith(prefix):
-            if not service or container.name[len(prefix) :] in service:
-                click.secho("> Removing '%s' container" % container.name, err=True, fg="red")
-                container.stop()
-                container.remove()
+    configure()
+
+    containers = _prepare_containers(project, silent=True)
+
+    if services:
+        selected_containers = {}
+        for service in services:
+            # XXX: This code is also fairly duplicated in here at this point, so dedupe in the future.
+            if service not in containers:
+                click.secho(
+                    "Service `{}` is not known or not enabled.\n".format(service),
+                    err=True,
+                    fg="red",
+                )
+                click.secho(
+                    "Services that are available:\n" + "\n".join(containers.keys()) + "\n",
+                    err=True,
+                )
+                raise click.Abort()
+            selected_containers[service] = containers[service]
+        containers = selected_containers
+
+    click.confirm(
+        """
+This will delete these services and all of their data:
+
+%s
+
+Are you sure you want to continue?"""
+        % "\n".join(containers.keys()),
+        abort=True,
+    )
+
+    for service_name, container_options in containers.items():
+        try:
+            container = client.containers.get(container_options["name"])
+        except docker.errors.NotFound:
+            click.secho(
+                "> WARNING: non-existent container '%s'" % container_options["name"],
+                err=True,
+                fg="yellow",
+            )
+            continue
+
+        click.secho("> Stopping '%s' container" % container_options["name"], err=True, fg="red")
+        container.stop()
+        click.secho("> Removing '%s' container" % container_options["name"], err=True, fg="red")
+        container.remove()
+
+    prefix = project + "_"
 
     for volume in client.volumes.list():
         if volume.name.startswith(prefix):
-            if not service or volume.name[len(prefix) :] in service:
+            if not services or volume.name[len(prefix) :] in services:
                 click.secho("> Removing '%s' volume" % volume.name, err=True, fg="red")
                 volume.remove()
 
-    if not service:
+    if not services:
         try:
             network = client.networks.get(project)
         except docker.errors.NotFound:

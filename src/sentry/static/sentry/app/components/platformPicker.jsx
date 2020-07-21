@@ -10,14 +10,13 @@ import {t, tct} from 'app/locale';
 import Button from 'app/components/button';
 import EmptyMessage from 'app/views/settings/components/emptyMessage';
 import ExternalLink from 'app/components/links/externalLink';
-import InlineSvg from 'app/components/inlineSvg';
 import ListLink from 'app/components/links/listLink';
 import NavTabs from 'app/components/navTabs';
 import PlatformIconTile from 'app/components/platformIconTile';
 import categoryList from 'app/data/platformCategories';
 import platforms from 'app/data/platforms';
 import space from 'app/styles/space';
-import {IconClose} from 'app/icons';
+import {IconClose, IconSearch, IconProject} from 'app/icons';
 
 const PLATFORM_CATEGORIES = categoryList.concat({id: 'all', name: t('All')});
 
@@ -97,7 +96,7 @@ class PlatformPicker extends React.Component {
             ))}
           </CategoryNav>
           <SearchBar>
-            <InlineSvg src="icon-search" />
+            <IconSearch size="xs" />
             <input
               type="text"
               ref={this.searchInput}
@@ -128,7 +127,7 @@ class PlatformPicker extends React.Component {
         </PlatformList>
         {platformList.length === 0 && (
           <EmptyMessage
-            icon="icon-project"
+            icon={<IconProject size="xl" />}
             title={t("We don't have an SDK for that yet!")}
           >
             {tct(
@@ -161,7 +160,7 @@ const NavContainer = styled('div')`
 const SearchBar = styled('div')`
   ${inputStyles};
   padding: 0 8px;
-  color: ${p => p.theme.gray3};
+  color: ${p => p.theme.gray600};
   display: flex;
   align-items: center;
   font-size: 15px;
@@ -212,7 +211,7 @@ const ClearButton = styled(p => (
   width: 22px;
   border-radius: 50%;
   background: #fff;
-  color: ${p => p.theme.gray4};
+  color: ${p => p.theme.gray700};
 `;
 
 const PlatformCard = styled(({platform, selected, onClear, ...props}) => (
